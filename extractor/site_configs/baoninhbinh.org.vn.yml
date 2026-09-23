@@ -1,0 +1,13 @@
+'baoninhbinh.org.vn':
+  title_selectors:
+    - 'h1.header-title'
+  description_selectors:
+    - '.content-detail .font-bold'
+  main_container_selectors:
+    - '#content_detail'
+    - '#content-detail'
+    - '.content-detail'
+  # excluded_section_selectors:
+  #   - '.lg\\:col-span-4.col-span-12.lg\\:pl-4'
+  category_extractors:
+    - 'baoninhbinh_category'

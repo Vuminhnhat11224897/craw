@@ -1,0 +1,14 @@
+'baolangson.vn':
+  description_selectors:
+    - '#content-detail h2'
+  main_container_selectors:
+    - '#content-detail'
+    - '.content-detail'
+    - '#content-detail > div'
+    - '.content-detail > div'
+  excluded_section_selectors:
+    - 'p:-soup-contains("{{")'
+    - 'div:-soup-contains("{{")'
+    - 'span:-soup-contains("{{")'
+  category_extractors:
+    - 'breadcrumb_category'

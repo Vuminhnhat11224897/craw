@@ -1,0 +1,11 @@
+'baocaobang.vn':
+  description_selectors:
+    - 'div#content-detail > p > strong'
+    - 'div#content-detail p strong'
+    - 'div#content-detail strong'
+  main_container_selectors:
+    - 'div#content-detail'
+  main_container_keywords:
+    - 'content-detail'
+  excluded_section_selectors:
+    - 'div.block-news-list:has(.main-title:-soup-contains(''Cùng chuyên mục''))'

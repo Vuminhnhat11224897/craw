@@ -1,0 +1,9 @@
+'anninhthudo.vn':
+  main_container_selectors:
+    - 'div.article__body'
+    - 'div.cms-body'
+  main_container_keywords:
+    - 'article__body'
+    - 'cms-body'
+    - 'zce-content-body'
+    - 'article'

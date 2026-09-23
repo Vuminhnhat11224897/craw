@@ -1,0 +1,15 @@
+'baodongnai.com.vn':
+  description_selectors:
+    - 'div#content.content-detail .td-post-content > p'
+    - 'div#content.content-detail p'
+  main_container_selectors:
+    - 'div#content.content-detail'
+    - 'div#content.content-detail .td-post-content'
+    - 'div.content-detail .td-post-content'
+  main_container_keywords:
+    - 'content-detail'
+    - 'td-post-content'
+    - 'content'
+  category_extractors:
+    - 'baodongnai_category'
+  inline_media_only: true

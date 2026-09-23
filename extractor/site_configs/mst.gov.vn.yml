@@ -1,0 +1,14 @@
+'mst.gov.vn':
+  title_selectors:
+    - 'h1.detail-title'
+    - 'h1'
+  description_selectors:
+    - 'div.detail-sapo'
+    - 'meta[name="description"]'
+    - 'meta[property="og:description"]'
+  main_container_selectors:
+    - 'div.detail-content'
+  main_container_keywords:
+    - 'detail-content'
+  category_extractors:
+    - 'mst_category'

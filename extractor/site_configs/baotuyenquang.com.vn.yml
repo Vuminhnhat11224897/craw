@@ -1,0 +1,26 @@
+'baotuyenquang.com.vn':
+  title_selectors:
+    - 'h1.media-heading.title5'
+    - 'h1'
+  description_selectors:
+    - 'div.article_content div.content#content > p > strong'
+    - 'div.article_content .content > p > strong'
+    - 'div.article_content p > strong'
+    - 'div#content > p > strong'
+    - 'div#content p > strong'
+    - 'div#content strong'
+  main_container_selectors:
+    - 'div.article_content div.content#content'
+    - 'div.article_content #content'
+    - 'div#content'
+    - 'div.article_content'
+  main_container_keywords:
+    - 'article_content'
+    - 'content'
+  excluded_section_selectors:
+    - 'h1.media-heading'
+    - 'div.date'
+    - 'ul.social'
+    - 'div.bd02'
+  category_extractors:
+    - 'baotuyenquang_category'

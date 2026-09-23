@@ -1,0 +1,13 @@
+'baobacninhtv.vn':
+  description_selectors:
+    - 'div.news_detail_sapo p'
+    - 'div.news_detail_sapo'
+  main_container_selectors:
+    - '.news-details__content.link_content'
+  main_container_keywords:
+    - 'news-details__content'
+    - 'link_content'
+  excluded_section_selectors:
+    - '.news-related__list'
+  category_extractors:
+    - 'baobacninhtv_category'

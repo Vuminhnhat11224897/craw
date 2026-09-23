@@ -1,0 +1,15 @@
+'baobinhduong.vn':
+  title_selectors:
+    - 'h1.title'
+    - 'h1'
+  main_container_selectors:
+    - '#contentNews'
+    - '#contentNews .singular-content'
+    - 'div#contentNews'
+    - 'div#contentNews .singular-content'
+  main_container_keywords:
+    - 'contentNews'
+    - 'singular-content'
+    - 'content'
+  category_extractors:
+    - 'baobinhduong_category'

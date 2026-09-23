@@ -1,0 +1,10 @@
+'baothainguyen.vn':
+  description_selectors:
+    - 'div.desc'
+  main_container_selectors:
+    - 'div.content-detail'
+  main_container_keywords:
+    - 'content-detail'
+    - 'content'
+  category_extractors:
+    - 'baothainguyen_category'

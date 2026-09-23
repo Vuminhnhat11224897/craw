@@ -1,0 +1,28 @@
+'bnews.vn':
+  main_container_selectors:
+    - 'div.article__body div.article__content'
+    - 'div.article__content'
+    - 'div.article-detail__content'
+    - 'div.article-content'
+    - 'div.detail-content'
+    - 'div.article__body'
+    - 'section.article__body'
+    - 'div[itemprop=''articleBody'']'
+    - 'article[itemprop=''articleBody'']'
+  main_container_keywords:
+    - 'article__body'
+    - 'article__content'
+    - 'article-content'
+    - 'detail-content'
+  excluded_section_selectors:
+    - '.article__related'
+    - '.article__box--related'
+    - '.article-related'
+    - '.article__other'
+    - '.article__list--related'
+    - '[class*=''tin-lien'']'
+    - '[class*=''tin_lien'']'
+    - '[class*=''tinlienquan'']'
+  inline_image_container_selectors:
+    - '.post-mid-entry'
+  inline_media_only: true

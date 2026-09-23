@@ -1,0 +1,18 @@
+'vneconomy.vn':
+  description_selectors:
+    - 'div.news-sapo'
+    - '[data-field=''sapo'']'
+    - 'div.news-sapo[data-field=''sapo''] p'
+    - 'div.news-sapo p'
+    - '[data-field=''sapo''] p'
+    - 'div.news-sapo[data-field=''sapo''] p b'
+  main_container_selectors:
+    - 'div[data-field=''body'']'
+    - 'div.article__body'
+    - 'div[itemprop=''articleBody'']'
+  main_container_keywords:
+    - 'article__body'
+    - 'article'
+    - 'body'
+  tag_extractors:
+    - 'vneconomy_tags'

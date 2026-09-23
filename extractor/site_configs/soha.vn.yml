@@ -1,0 +1,12 @@
+'soha.vn':
+  main_container_selectors:
+    - 'div.detail-content.afcbc-body[data-role=''content'']'
+    - 'div.detail-content[data-role=''content'']'
+    - 'div.detail__content-page div.detail-content'
+  main_container_keywords:
+    - 'detail-content'
+    - 'afcbc-body'
+    - 'content'
+  category_extractors:
+    - 'giadinh_suckhoedoisong_category'
+    - 'soha_category'

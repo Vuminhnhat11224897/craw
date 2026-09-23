@@ -1,0 +1,9 @@
+'baodienbienphu.vn':
+  main_container_selectors:
+    - 'div.editor-content'
+    - '.editor-content'
+  main_container_keywords:
+    - 'editor-content'
+    - 'detail-news'
+  category_extractors:
+    - 'baodienbienphu_category'

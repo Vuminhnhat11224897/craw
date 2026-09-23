@@ -1,0 +1,14 @@
+'baohatinh.vn':
+  main_container_selectors:
+    - 'div.article__body.zce-content-body.cms-body[itemprop=''articleBody'']'
+    - 'div.article__body.zce-content-body.cms-body'
+    - 'div.article__body'
+    - 'div.article__body figcaption'
+  main_container_keywords:
+    - 'article__body'
+    - 'cms-body'
+    - 'zce-content-body'
+  excluded_section_selectors:
+    - '.ads_middle'
+    - '[id^=''adsWeb_'']'
+    - '.related-news'

@@ -1,0 +1,5 @@
+'baocantho.com.vn':
+  main_container_selectors:
+    - '#newscontents .content-fck'
+    - '.content-fck'
+    - '#newscontents'

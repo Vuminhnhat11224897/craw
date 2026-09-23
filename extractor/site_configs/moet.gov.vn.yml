@@ -1,0 +1,15 @@
+'moet.gov.vn':
+  title_selectors:
+    - 'h1.article-title'
+    - 'h1'
+  description_selectors:
+    - 'meta[name="description"]'
+    - 'meta[property="og:description"]'
+  main_container_selectors:
+    - 'div.content-detail'
+  main_container_keywords:
+    - 'content-detail'
+  excluded_section_selectors:
+    - '.clearfix'
+  category_extractors:
+    - 'mofa_category'

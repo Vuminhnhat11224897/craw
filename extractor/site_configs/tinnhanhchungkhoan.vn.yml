@@ -1,0 +1,18 @@
+'tinnhanhchungkhoan.vn':
+  description_selectors:
+    - 'meta[name=''description'']'
+    - 'meta[property=''og:description'']'
+    - 'h2.sapo'
+    - 'p.sapo'
+  main_container_selectors:
+    - 'article'
+    - 'div[itemprop=''articleBody'']'
+    - 'div[class*=''detail-content'']'
+    - 'div[class*=''article-content'']'
+    - 'div[class*=''content-detail'']'
+  main_container_keywords:
+    - 'article'
+    - 'detail'
+    - 'content'
+  category_extractors:
+    - 'breadcrumb_category'

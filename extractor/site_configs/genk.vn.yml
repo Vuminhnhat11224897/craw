@@ -1,0 +1,5 @@
+'genk.vn':
+  main_container_selectors:
+    - 'div#ContentDetail'
+  category_extractors:
+    - 'genk_category'

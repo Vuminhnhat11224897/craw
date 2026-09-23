@@ -1,0 +1,14 @@
+'baosonla.vn':
+  description_selectors:
+    - 'div.fulltext > p.font-bold'
+    - 'div.fulltext p.font-bold'
+  main_container_selectors:
+    - 'div#editor-detail'
+    - '#editor-detail'
+    - 'div.fulltext'
+  excluded_section_selectors:
+    - '.audio-article'
+    - '.select-accent-wrap'
+    - '.text-end'
+  category_extractors:
+    - 'baosonla_category'

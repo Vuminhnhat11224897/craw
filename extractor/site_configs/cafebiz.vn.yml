@@ -1,0 +1,13 @@
+'cafebiz.vn':
+  description_selectors:
+    - 'h2.sapo'
+    - 'p.sapo'
+    - 'div.sapo'
+  main_container_selectors:
+    - 'div.detail-content[data-role=''content'']'
+    - 'div.detail-content'
+  main_container_keywords:
+    - 'detail-content'
+    - 'content'
+  category_extractors:
+    - 'cafebiz_category'

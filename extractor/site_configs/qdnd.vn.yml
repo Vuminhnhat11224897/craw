@@ -1,0 +1,8 @@
+'qdnd.vn':
+  description_selectors:
+    - 'div.post-summary p.logo-online'
+    - 'div.post-summary'
+  main_container_selectors:
+    - 'div.post-content'
+  category_extractors:
+    - 'qdnd_category'

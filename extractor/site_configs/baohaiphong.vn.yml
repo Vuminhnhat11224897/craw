@@ -1,0 +1,16 @@
+'baohaiphong.vn':
+  description_selectors:
+    - 'p.sc-longform-header-sapo'
+    - 'p.block-sc-sapo'
+    - '.sc-longform-header-sapo'
+  main_container_selectors:
+    - 'div.b-maincontent .entry'
+    - '.b-maincontent .entry'
+    - 'div.b-maincontent'
+  main_container_keywords:
+    - 'b-maincontent'
+    - 'entry'
+    - 'maincontent'
+  excluded_section_selectors:
+    - 'div.sc-longform-header'
+    - 'div.sc-empty-layer'

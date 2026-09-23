@@ -1,0 +1,6 @@
+'eva.vn':
+  category_extractors:
+    - 'eva_category'
+  excluded_section_selectors:
+    - '.evtBox.evtBoxPrBt'
+  include_metadata_images: true

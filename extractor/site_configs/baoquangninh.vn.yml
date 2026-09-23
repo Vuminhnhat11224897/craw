@@ -1,0 +1,13 @@
+'baoquangninh.vn':
+  title_selectors:
+    - 'h1.name'
+    - 'h1'
+  main_container_selectors:
+    - '#content-detail'
+    - '.content-article #content-detail'
+    - '.content-article .detail'
+  main_container_keywords:
+    - 'content-detail'
+    - 'content-article'
+  category_extractors:
+    - 'baoquangninh_category'

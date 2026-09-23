@@ -1,0 +1,13 @@
+'vtcnews.vn':
+  description_selectors:
+    - 'h2.font18.bold.inline-nb'
+    - 'meta[name=''description'']'
+    - 'meta[property=''og:description'']'
+  main_container_selectors:
+    - 'div.edittor-content.box-cont.mt15.clearfix'
+    - 'div.edittor-content'
+    - 'div.content-wrapper.pt5.mt5.font18.gray-31.bor-4top-e5.lh-1-5'
+  main_container_keywords:
+    - 'edittor-content'
+    - 'content-wrapper'
+    - 'box-cont'

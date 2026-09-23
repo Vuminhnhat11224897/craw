@@ -1,0 +1,33 @@
+'huengaynay.vn':
+  title_selectors:
+    - 'meta[property=''og:title'']'
+    - 'h1'
+  description_selectors:
+    - 'meta[property=''og:description'']'
+    - 'meta[name=''description'']'
+    - '.article__sapo'
+    - '.article-sapo'
+    - '.sapo'
+    - '.post-summary'
+  main_container_selectors:
+    - '[itemprop=''articleBody'']'
+    - 'article'
+    - '#ContentDetail'
+    - '#content-detail'
+    - '.detail-content'
+    - '.article-content'
+    - '.content-detail'
+  main_container_keywords:
+    - 'detail'
+    - 'content'
+    - 'article'
+    - 'entry'
+  excluded_section_selectors:
+    - '.share'
+    - '.social'
+    - '.related'
+    - '.box-related'
+    - '.tags'
+    - '.comment'
+  category_extractors:
+    - 'breadcrumb_category'

@@ -1,0 +1,11 @@
+'mae.gov.vn':
+  title_selectors:
+    - 'h1.tieu-de-chi-tiet-tin'
+    - 'h1.tieu-de-tin-tuc'
+    - 'h1'
+  description_selectors:
+    - '.sapo-chi-tiet-tin'
+  main_container_selectors:
+    - 'article.noi-dung-chi-tiet-tin'
+  main_container_keywords:
+    - 'noi-dung-chi-tiet-tin'

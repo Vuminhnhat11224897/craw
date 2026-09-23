@@ -1,0 +1,14 @@
+'travinh.baovinhlong.vn':
+  description_selectors:
+    - '.detail-desc p'
+    - 'div.detail-desc p'
+  main_container_selectors:
+    - '#newscontents'
+    - 'div#newscontents'
+    - 'div.content-fck'
+  main_container_keywords:
+    - 'newscontents'
+    - 'content-fck'
+    - 'detail'
+  category_extractors:
+    - 'baodongkhoi_category'

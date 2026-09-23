@@ -1,0 +1,24 @@
+'mofa.gov.vn':
+  title_selectors:
+    - 'h1.title'
+    - 'h1'
+  description_selectors:
+    - 'div.article-summary'
+  main_container_selectors:
+    - 'div#content-post.main-content'
+    - '#content-post'
+    - 'div.article-content'
+  main_container_keywords:
+    - 'article-content'
+    - 'main-content'
+  excluded_section_selectors:
+    - '.toolbar'
+    - '.mobile-toolbar-header'
+    - '.share-actions'
+  inline_image_container_selectors:
+    - 'soup:.catogory-img'
+    - 'soup:.category-img'
+  category_extractors:
+    - 'mofa_category'
+  inline_media_only: true
+  allow_extensionless_images: true

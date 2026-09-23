@@ -1,0 +1,6 @@
+'baoquangtri.vn':
+  main_container_selectors:
+    - 'div#content'
+    - 'div.content'
+  category_extractors:
+    - 'baoquangtri_category'

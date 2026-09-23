@@ -1,0 +1,8 @@
+'vietnamplus.vn':
+  main_container_selectors:
+    - 'div.article__body.zce-content-body.cms-body[itemprop=''articleBody'']'
+    - 'div.article__body.zce-content-body.cms-body'
+    - 'div.article__body'
+  main_container_keywords:
+    - 'article__body'
+    - 'cms-body'

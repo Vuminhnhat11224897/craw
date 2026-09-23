@@ -1,0 +1,21 @@
+'baodaklak.vn':
+  description_selectors:
+    - 'div.article_content div.content#content > p > strong'
+    - 'div.article_content .content > p > strong'
+    - 'div.article_content p > strong'
+  main_container_selectors:
+    - 'div.article_content div.content#content'
+    - 'div.article_content #content'
+    - 'div.article_content'
+  main_container_keywords:
+    - 'article_content'
+    - 'content'
+  excluded_section_selectors:
+    - 'h1.media-heading'
+    - 'div.date'
+    - 'ul.social'
+    - 'div.bd02'
+  category_extractors:
+    - 'baodaklak_category'
+  tag_extractors:
+    - 'baodaklak_tags'

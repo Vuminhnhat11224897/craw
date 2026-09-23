@@ -1,0 +1,10 @@
+'baolaichau.vn':
+  title_selectors:
+    - '#post-content .post-detail .post-info .title'
+  description_selectors:
+    - '#post-content .post-detail .post-info .sapo'
+  main_container_selectors:
+    - '#post-content .post-detail .post-info .body'
+  main_container_keywords:
+    - 'post-info'
+    - 'body'

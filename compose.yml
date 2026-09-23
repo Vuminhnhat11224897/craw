@@ -1,0 +1,16 @@
+services:
+  realtime-news:
+    build:
+      context: ..
+      dockerfile: craw_real_times/Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:?Set PYTHON_VERSION in craw_real_times/.env}
+    env_file: .env
+    environment:
+      REALTIME_LISTEN_HOST: ${REALTIME_CONTAINER_LISTEN_HOST:?Set REALTIME_CONTAINER_LISTEN_HOST}
+      IMAGES_FOLDER: ${REALTIME_CONTAINER_IMAGES_FOLDER:?Set REALTIME_CONTAINER_IMAGES_FOLDER}
+    ports:
+      - "${REALTIME_BIND_ADDRESS:?Set REALTIME_BIND_ADDRESS}:${REALTIME_HOST_PORT:?Set REALTIME_HOST_PORT}:${REALTIME_LISTEN_PORT:?Set REALTIME_LISTEN_PORT}"
+    volumes:
+      - ./realtime_images:${REALTIME_CONTAINER_IMAGES_FOLDER:?Set REALTIME_CONTAINER_IMAGES_FOLDER}
+    restart: unless-stopped

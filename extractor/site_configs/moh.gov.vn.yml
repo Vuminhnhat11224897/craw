@@ -1,0 +1,31 @@
+'moh.gov.vn':
+  title_selectors:
+    - 'meta[property="og:title"]'
+    - 'h1'
+  description_selectors:
+    - 'meta[property="og:description"]'
+    - 'meta[name="description"]'
+    - 'p.sapo'
+    - 'p.summary'
+  main_container_selectors:
+    - 'div.journal-content-article'
+    - 'div.asset-full-content'
+    - 'div.portlet-body'
+    - 'div.article-content'
+    - 'div.detail-content'
+    - 'div#content'
+    - 'article'
+  main_container_keywords:
+    - 'journal-content'
+    - 'article'
+    - 'detail'
+    - 'content'
+  excluded_section_selectors:
+    - '.share'
+    - '.social'
+    - '.tags'
+    - '.toolbar'
+    - '.breadcrumb'
+  category_extractors:
+    - 'breadcrumb_category'
+  allow_extensionless_images: true
