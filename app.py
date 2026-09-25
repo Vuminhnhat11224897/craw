@@ -24,7 +24,10 @@ LOGGER = logging.getLogger(__name__)
 
 def create_app(settings: Settings | None = None, *, service=None) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
-    runtime = CrawlRuntime(max_workers=settings.max_concurrent_crawls, timeout=settings.crawl_timeout)
+    runtime = CrawlRuntime(
+        max_workers=settings.max_concurrent_crawls, timeout=settings.crawl_timeout,
+        max_queue=settings.max_queued_crawls, queue_timeout=settings.queue_timeout,
+    )
     crawl_service = service if service is not None else CrawlService(settings, runtime.limiter)
 
     @asynccontextmanager

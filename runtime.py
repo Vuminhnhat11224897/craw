@@ -55,22 +55,51 @@ class DomainLimiter:
 
 
 class CrawlRuntime:
-    def __init__(self, *, max_workers: int, timeout: float):
+    def __init__(self, *, max_workers: int, timeout: float, max_queue: int = 0, queue_timeout: float = 0):
         self.timeout = timeout
-        self._slots = threading.BoundedSemaphore(max_workers)
+        self.max_workers = max_workers
+        self.max_queue = max_queue
+        self.queue_timeout = queue_timeout
+        self._slots: asyncio.Semaphore | None = None
+        self._waiting = 0
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="realtime-crawl")
         self.limiter = DomainLimiter()
 
+    async def _acquire_slot(self) -> asyncio.Semaphore:
+        if self._slots is None:
+            self._slots = asyncio.Semaphore(self.max_workers)
+        slots = self._slots
+        if not slots.locked():
+            await slots.acquire()
+            return slots
+        if self._waiting >= self.max_queue:
+            raise CrawlError("BUSY", "All crawl slots and the wait queue are full. Retry later.", 503, retryable=True)
+        self._waiting += 1
+        try:
+            await asyncio.wait_for(slots.acquire(), timeout=self.queue_timeout)
+        except asyncio.TimeoutError:
+            raise CrawlError("BUSY", "Waited too long for a free crawl slot. Retry later.", 503, retryable=True) from None
+        finally:
+            self._waiting -= 1
+        return slots
+
     async def run(self, operation):
-        if not self._slots.acquire(blocking=False):
-            raise CrawlError("BUSY", "All crawl slots are in use. Retry later.", 503, retryable=True)
+        slots = await self._acquire_slot()
+        loop = asyncio.get_running_loop()
         deadline = Deadline(self.timeout)
         try:
             concurrent_future = self._executor.submit(operation, deadline)
         except BaseException:
-            self._slots.release()
+            slots.release()
             raise
-        concurrent_future.add_done_callback(lambda _: self._slots.release())
+        def release(_):
+            try:
+                loop.call_soon_threadsafe(slots.release)
+            except RuntimeError:
+                pass  # event loop already closed during shutdown
+
+        # The slot is held until the worker thread really finishes, so threads never exceed max_workers.
+        concurrent_future.add_done_callback(release)
         future = asyncio.wrap_future(concurrent_future)
         # Consume exceptions even if the caller stopped waiting after a timeout.
         future.add_done_callback(lambda done: None if done.cancelled() else done.exception())

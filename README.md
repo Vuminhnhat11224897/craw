@@ -256,7 +256,9 @@ tối đa theo `MAX_VIDEOS_PER_ARTICLE`.
 
 | Cơ chế | Mặc định | Hành vi |
 |---|---|---|
-| Số crawl đồng thời | `MAX_CONCURRENT_CRAWLS=8` | Request thứ 9 trở đi nhận ngay `503 BUSY` kèm header `Retry-After`, không xếp hàng. Phía gọi cần tự retry. |
+| Số crawl đồng thời | `MAX_CONCURRENT_CRAWLS=16` | Request vượt số này sẽ xếp hàng chờ (đến trước phục vụ trước). |
+| Hàng chờ | `MAX_QUEUED_CRAWLS=200` | Hàng chờ đầy thì request mới nhận ngay `503 BUSY` kèm header `Retry-After`. |
+| Thời gian chờ tối đa trong hàng | `QUEUE_TIMEOUT_SECONDS=180` | Chờ quá lâu thì nhận `503 BUSY`. Thời gian chờ không tính vào `CRAWL_TIMEOUT_SECONDS`, nên phía gọi nên đặt timeout HTTP ≥ 210s. |
 | Giãn cách theo domain | `DEFAULT_DOMAIN_DELAY_SECONDS=0.5` | Các request vào cùng một báo chạy lần lượt, cách nhau ít nhất 0.5s. Các báo khác nhau chạy song song. |
 | Thời gian tối đa mỗi crawl | `CRAWL_TIMEOUT_SECONDS=30` | Quá thời gian thì trả `504 CRAWL_TIMEOUT` |
 | Cache | không có | Gọi lại cùng URL sẽ crawl lại từ báo |
@@ -288,7 +290,7 @@ Mọi lỗi có dạng:
 | 404 | `ARTICLE_NOT_FOUND` | không | Báo trả 404/410, hoặc redirect về trang chủ/trang 404 (vnexpress trả `302 → /404.html`) |
 | 429 | `RATE_LIMITED` | có | Báo đang chặn tần suất |
 | 502 | `UPSTREAM_ERROR` | có | Không kết nối được, báo trả lỗi, quá nhiều redirect, trang quá lớn… |
-| 503 | `BUSY` | có | Hết slot crawl |
+| 503 | `BUSY` | có | Hàng chờ đầy, hoặc chờ quá `QUEUE_TIMEOUT_SECONDS` |
 | 504 | `CRAWL_TIMEOUT` | có | Báo phản hồi chậm hoặc vượt thời gian tối đa |
 | 500 | `INTERNAL_ERROR` | không | Lỗi không lường trước, xem log theo `request_id` |
 
