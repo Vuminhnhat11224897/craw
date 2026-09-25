@@ -6,10 +6,11 @@ import re
 import unicodedata
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import escape, unescape
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import urljoin, urlparse
+from zoneinfo import ZoneInfo
 import requests
 from bs4 import BeautifulSoup, FeatureNotFound, NavigableString, Tag
 from dateutil import parser as date_parser
@@ -580,8 +581,21 @@ class ArticleExtractor:
         return ",".join(tags)
 
     def _extract_publish_date(self, soup: BeautifulSoup) -> datetime | None:
+        site_selectors = self.site_config.publish_date_selectors if self.site_config else ()
+        for selector in site_selectors:
+            for element in soup.select(selector):
+                for attr in ("datetime", "content"):
+                    if element.get(attr):
+                        parsed = _parse_datetime(element[attr])
+                        if parsed:
+                            return parsed
+                parsed = _parse_datetime_text(element.get_text(" ", strip=True))
+                if parsed:
+                    return parsed
+
         selectors = [
             ("meta[property='article:published_time']", "content"),
+            ("meta[name='article:published_time']", "content"),
             ("meta[name='pubdate']", "content"),
             ("meta[name='timestamp']", "content"),
             ("meta[itemprop='datePublished']", "content"),
@@ -625,6 +639,8 @@ class ArticleExtractor:
         ]
         for selector in text_selectors:
             for element in soup.select(selector):
+                if _is_non_article_date_element(element):
+                    continue
                 text = element.get_text(" ", strip=True)
                 if not text:
                     continue
@@ -1333,17 +1349,85 @@ def _extract_date_from_jsonld(soup: BeautifulSoup) -> Optional[datetime]:
     return None
 
 
+_RELATIVE_TIME_RE = re.compile(
+    r"(\d+)\s*(giây|giay|phút|phut|giờ|gio|tiếng|tieng|ngày|ngay|tuần|tuan|tháng|thang|năm|nam)\s*(trước|truoc)",
+    re.IGNORECASE,
+)
+_RELATIVE_TIME_UNITS = {
+    "giây": timedelta(seconds=1), "giay": timedelta(seconds=1),
+    "phút": timedelta(minutes=1), "phut": timedelta(minutes=1),
+    "giờ": timedelta(hours=1), "gio": timedelta(hours=1),
+    "tiếng": timedelta(hours=1), "tieng": timedelta(hours=1),
+    "ngày": timedelta(days=1), "ngay": timedelta(days=1),
+    "tuần": timedelta(weeks=1), "tuan": timedelta(weeks=1),
+    "tháng": timedelta(days=30), "thang": timedelta(days=30),
+    "năm": timedelta(days=365), "nam": timedelta(days=365),
+}
+
+
+def _parse_relative_time(text: str) -> Optional[datetime]:
+    match = _RELATIVE_TIME_RE.search(unicodedata.normalize("NFC", text))
+    if not match:
+        return None
+    amount, unit = int(match.group(1)), match.group(2).lower()
+    return datetime.now(timezone.utc) - amount * _RELATIVE_TIME_UNITS[unit]
+
+
+_NON_ARTICLE_DATE_CLASS_TOKENS = ("now", "today", "header", "current", "player", "audio", "podcast")
+
+
+def _is_non_article_date_element(element: Tag) -> bool:
+    """Site header clocks ("Thứ sáu, 25/9/2026") and media player timers are not publish dates."""
+    classes = " ".join(element.get("class") or []).lower()
+    if any(token in classes for token in _NON_ARTICLE_DATE_CLASS_TOKENS):
+        return True
+    return element.find_parent(["header", "nav", "footer"]) is not None
+
+
+_TEXT_DATE_PATTERNS = (
+    (re.compile(r"(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)"), ("y", "m", "d")),
+    (re.compile(r"(?<!\d)(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})(?!\d)"), ("d", "m", "y")),
+    (re.compile(r"ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})", re.IGNORECASE), ("d", "m", "y")),
+)
+_TEXT_TIME_RE = re.compile(r"(?<![\d/.-])(\d{1,2})[:hH](\d{2})(?::(\d{2}))?(?:\s*(AM|PM|SA|CH))?(?![\d/.-])", re.IGNORECASE)
+_RECORD_ZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
 def _parse_datetime_text(text: str) -> Optional[datetime]:
-    cleaned = text.strip()
+    """Parse visible date text; requires an explicit day/month/year so view counts or bare clocks are ignored."""
+    cleaned = unicodedata.normalize("NFC", text.strip())
     if not cleaned:
         return None
-    try:
-        parsed = date_parser.parse(cleaned, fuzzy=True, dayfirst=True)
-    except (ValueError, TypeError, OverflowError):
-        return None
-    if parsed.tzinfo:
-        return parsed.astimezone(timezone.utc)
-    return parsed
+    relative = _parse_relative_time(cleaned)
+    if relative:
+        return relative
+
+    for pattern, order in _TEXT_DATE_PATTERNS:
+        match = pattern.search(cleaned)
+        if not match:
+            continue
+        parts = dict(zip(order, (int(value) for value in match.groups())))
+        year = parts["y"] + 2000 if parts["y"] < 100 else parts["y"]
+        hour = minute = second = 0
+        remainder = cleaned[: match.start()] + " " + cleaned[match.end():]
+        time_match = _TEXT_TIME_RE.search(remainder)
+        if time_match:
+            hour, minute = int(time_match.group(1)), int(time_match.group(2))
+            second = int(time_match.group(3) or 0)
+            meridiem = (time_match.group(4) or "").upper()
+            if meridiem in ("PM", "CH") and hour < 12:
+                hour += 12
+            elif meridiem in ("AM", "SA") and hour == 12:
+                hour = 0
+        try:
+            parsed = datetime(year, parts["m"], parts["d"], hour, minute, second)
+        except ValueError:
+            continue
+        latest = datetime.now(_RECORD_ZONE).replace(tzinfo=None) + timedelta(days=1)
+        if parsed.year < 2000 or parsed > latest:
+            continue
+        return parsed
+    return None
 
 
 def _slugify(value: str | None) -> str | None:

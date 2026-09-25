@@ -4,3 +4,5 @@
     - 'div.content'
   category_extractors:
     - 'baoquangtri_category'
+  publish_date_selectors:
+    - '.page-detail-meta li'

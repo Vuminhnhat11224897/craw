@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 from craw_real_times.config.base import SiteConfig
@@ -47,6 +48,15 @@ class FetchArticleTests(unittest.TestCase):
         self.assertIn("Nội dung bài báo", article.content or "")
         self.assertIsNone(article.category_id)
         self.assertIsNone(article.category_name)
+
+    def test_publish_date_falls_back_to_now_when_page_has_no_date(self) -> None:
+        before = datetime.now(timezone.utc)
+
+        article = self.crawler.fetch_article(self.url)
+
+        self.assertIsNotNone(article.publish_date)
+        self.assertGreaterEqual(article.publish_date, before)
+        self.assertLessEqual(article.publish_date, datetime.now(timezone.utc))
 
     def test_skips_a_page_without_article_content(self) -> None:
         self.client.html = "<html><head><title>Trang thông báo</title></head><body></body></html>"

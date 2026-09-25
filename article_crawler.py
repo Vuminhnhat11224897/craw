@@ -4,7 +4,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from html import unescape
 from typing import Dict, List, Optional, Sequence, Set
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -681,7 +681,7 @@ class ArticleCrawler:
             if not has_category_name or normalized_category_id in ("", "root"):
                 raise SkipArticle(f"Missing category for vietbao article {url}")
 
-        publish_date = data.publish_date or _extract_publish_date(soup)
+        publish_date = data.publish_date or _extract_publish_date(soup) or datetime.now(timezone.utc)
 
         if data.tags:
             tags_list: List[str] = [

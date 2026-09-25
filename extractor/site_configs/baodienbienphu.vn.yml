@@ -7,3 +7,5 @@
     - 'detail-news'
   category_extractors:
     - 'baodienbienphu_category'
+  publish_date_selectors:
+    - 'div[class*="#C5C5C5"]'

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from craw_real_times.config.base import SiteConfig
@@ -61,6 +61,35 @@ class ArticleExportTests(unittest.TestCase):
         self.assertEqual(data["article_images"][0]["article_id"], article_id)
         self.assertEqual(data["article_videos"][0]["article_id"], article_id)
         self.assertNotIn("persistence_status", export)
+
+    def test_publish_date_is_normalized_to_vietnam_time(self) -> None:
+        cases = [
+            (datetime(2026, 9, 25, 10, 51), "2026-09-25T10:51:00+07:00"),
+            (datetime(2026, 9, 25, 7, 0, 1, tzinfo=timezone.utc), "2026-09-25T14:00:01+07:00"),
+            (
+                datetime(2026, 9, 25, 14, 0, 1, tzinfo=timezone(timedelta(hours=7))),
+                "2026-09-25T14:00:01+07:00",
+            ),
+        ]
+        for publish_date, expected in cases:
+            article = ParsedArticle(
+                url="https://example.com/news/story.html",
+                title="Bài báo",
+                description=None,
+                content="Nội dung.",
+                category_id=None,
+                category_name=None,
+                tags=(),
+                publish_date=publish_date,
+                images=(),
+                videos=(),
+            )
+            export = build_article_export(
+                article,
+                site=SiteConfig(key="example", base_url="https://example.com"),
+                request_id="request-test",
+            )
+            self.assertEqual(export["data"]["articles"][0]["publish_date"], expected)
 
     def test_encode_returns_utf8_json_bytes_with_a_final_newline(self) -> None:
         encoded = encode_article_export({"title": "Bản tin tiếng Việt"})

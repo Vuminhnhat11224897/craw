@@ -31,6 +31,16 @@ def _record_time(now: datetime, timezone_name: str) -> datetime:
     return now.astimezone(zone).replace(tzinfo=None)
 
 
+def _to_record_timezone(value: datetime | None, timezone_name: str) -> datetime | None:
+    if value is None:
+        return None
+    zone = ZoneInfo(timezone_name)
+    # Sites without an explicit offset publish local Vietnam time.
+    if value.tzinfo is None:
+        return value.replace(tzinfo=zone)
+    return value.astimezone(zone)
+
+
 def build_article_export(
     parsed: ParsedArticle,
     *,
@@ -65,7 +75,7 @@ def build_article_export(
             ArticleCrawler._join_tags(parsed.tags), Article.tags
         ),
         "url": url,
-        "publish_date": _field_value(parsed.publish_date),
+        "publish_date": _field_value(_to_record_timezone(parsed.publish_date, record_timezone)),
         "created_at": record_timestamp.isoformat(),
         "updated_at": record_timestamp.isoformat(),
         "article_name": ArticleCrawler._trim_to_column_length(
