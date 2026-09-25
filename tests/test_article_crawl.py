@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 from craw_real_times.config.base import SiteConfig
 from craw_real_times.article_crawler import ArticleCrawler, SkipArticle
+from craw_real_times.errors import CrawlError
 
 
 class _FakeArticleClient:
@@ -52,6 +53,56 @@ class FetchArticleTests(unittest.TestCase):
 
         with self.assertRaises(SkipArticle):
             self.crawler.fetch_article(self.url)
+
+    def test_home_page_url_is_not_an_article(self) -> None:
+        for url in ("https://example.com/", "https://example.com"):
+            with self.assertRaises(SkipArticle):
+                self.crawler.fetch_article(url)
+        self.assertEqual(self.client.requested, [])
+
+    def test_redirect_to_home_page_is_article_not_found(self) -> None:
+        self.client.last_url = "https://example.com/"
+
+        with self.assertRaises(CrawlError) as caught:
+            self.crawler.fetch_article(self.url)
+
+        self.assertEqual(caught.exception.code, "ARTICLE_NOT_FOUND")
+        self.assertEqual(caught.exception.status_code, 404)
+
+    def test_redirect_to_404_page_is_article_not_found(self) -> None:
+        self.client.last_url = "https://example.com/404.html"
+
+        with self.assertRaises(CrawlError) as caught:
+            self.crawler.fetch_article(self.url)
+
+        self.assertEqual(caught.exception.code, "ARTICLE_NOT_FOUND")
+
+    def test_redirect_to_another_article_is_kept(self) -> None:
+        self.client.last_url = "https://example.com/news/story-123-moved.html"
+
+        article = self.crawler.fetch_article(self.url)
+
+        self.assertEqual(article.title, "Bài thử")
+
+    def test_tuoitre_category_from_detail_cate(self) -> None:
+        url = "https://tuoitre.vn/bai-thu-100260923120510023.htm"
+        client = _FakeArticleClient(
+            """
+            <html lang="vi"><head><meta property="og:title" content="Bài Tuổi Trẻ"></head><body>
+              <div class="detail-cate"><a href="/the-gioi.htm" title="Thế giới">Thế giới</a></div>
+              <article>
+                <p>Nội dung bài báo đủ dài để được nhận diện là bài viết đầy đủ.</p>
+                <p>Đoạn nội dung tiếp tục thêm thông tin cho bài báo thử nghiệm.</p>
+              </article>
+            </body></html>
+            """
+        )
+        crawler = ArticleCrawler(SiteConfig(key="tuoitre", base_url="https://tuoitre.vn"), client=client)
+
+        article = crawler.fetch_article(url)
+
+        self.assertEqual(article.category_id, "the-gioi")
+        self.assertEqual(article.category_name, "Thế giới")
 
     def test_cafef_interactive_longform(self) -> None:
         client = _FakeArticleClient(

@@ -24,7 +24,6 @@ def _default(name: str) -> str:
 class Settings:
     api_key: str = ""
     article_namespace: str = ""
-    database_url: str | None = None
     record_timezone: str = _default("RECORD_TIMEZONE")
     max_concurrent_crawls: int = int(_default("MAX_CONCURRENT_CRAWLS"))
     crawl_timeout: float = float(_default("CRAWL_TIMEOUT_SECONDS"))
@@ -35,6 +34,7 @@ class Settings:
     max_image_bytes: int = int(_default("MAX_IMAGE_BYTES"))
     max_videos_per_article: int = int(_default("MAX_VIDEOS_PER_ARTICLE"))
     images_folder: str = _default("IMAGES_FOLDER")
+    videos_folder: str = _default("VIDEOS_FOLDER")
     blocked_image_urls: tuple[str, ...] = tuple(value.strip() for value in _default("BLOCKED_IMAGE_URLS").split(",") if value.strip())
     http_user_agent: str = _default("HTTP_USER_AGENT")
     http_accept: str = _default("HTTP_ACCEPT")
@@ -46,7 +46,6 @@ class Settings:
     http_chunk_bytes: int = int(_default("HTTP_CHUNK_BYTES"))
     retry_backoff_cap: float = float(_default("RETRY_BACKOFF_CAP_SECONDS"))
     retry_after_seconds: int = int(_default("RETRY_AFTER_SECONDS"))
-    db_application_name: str = _default("DB_APPLICATION_NAME")
     moha_api_base: str = _default("MOHA_API_BASE")
     mof_api_base: str = _default("MOF_API_BASE")
 
@@ -57,7 +56,6 @@ class Settings:
         return cls(
             api_key=os.getenv("INTERNAL_API_KEY", ""),
             article_namespace=os.getenv("ARTICLE_UUIDV5_NAMESPACE", ""),
-            database_url=os.getenv("DATABASE_URL") or None,
             record_timezone=os.getenv("RECORD_TIMEZONE", cls.record_timezone),
             max_concurrent_crawls=int(os.getenv("MAX_CONCURRENT_CRAWLS", str(cls.max_concurrent_crawls))),
             crawl_timeout=float(os.getenv("CRAWL_TIMEOUT_SECONDS", str(cls.crawl_timeout))),
@@ -68,6 +66,7 @@ class Settings:
             max_image_bytes=int(os.getenv("MAX_IMAGE_BYTES", str(cls.max_image_bytes))),
             max_videos_per_article=int(os.getenv("MAX_VIDEOS_PER_ARTICLE", str(cls.max_videos_per_article))),
             images_folder=os.getenv("IMAGES_FOLDER", cls.images_folder),
+            videos_folder=os.getenv("VIDEOS_FOLDER", cls.videos_folder),
             blocked_image_urls=tuple(value.strip() for value in os.getenv("BLOCKED_IMAGE_URLS", ",".join(cls.blocked_image_urls)).split(",") if value.strip()),
             http_user_agent=os.getenv("HTTP_USER_AGENT", cls.http_user_agent),
             http_accept=os.getenv("HTTP_ACCEPT", cls.http_accept),
@@ -79,7 +78,6 @@ class Settings:
             http_chunk_bytes=int(os.getenv("HTTP_CHUNK_BYTES", str(cls.http_chunk_bytes))),
             retry_backoff_cap=float(os.getenv("RETRY_BACKOFF_CAP_SECONDS", str(cls.retry_backoff_cap))),
             retry_after_seconds=int(os.getenv("RETRY_AFTER_SECONDS", str(cls.retry_after_seconds))),
-            db_application_name=os.getenv("DB_APPLICATION_NAME", cls.db_application_name),
             moha_api_base=os.getenv("MOHA_API_BASE", cls.moha_api_base),
             mof_api_base=os.getenv("MOF_API_BASE", cls.mof_api_base),
         )
@@ -95,8 +93,8 @@ class Settings:
             raise ValueError("Timeouts, limits and concurrency must be positive; retries cannot be negative")
         if self.default_domain_delay < 0 or self.retry_backoff_cap < 0 or self.max_redirects < 0 or self.http_chunk_bytes < 1 or self.retry_after_seconds < 1:
             raise ValueError("HTTP limits and retry values must be valid")
-        if not all(value.strip() for value in (self.images_folder, self.http_user_agent, self.http_accept, self.http_json_accept, self.http_image_accept, self.http_accept_language, self.db_application_name)):
-            raise ValueError("HTTP headers, image folder and DB application name must not be empty")
+        if not all(value.strip() for value in (self.images_folder, self.videos_folder, self.http_user_agent, self.http_accept, self.http_json_accept, self.http_image_accept, self.http_accept_language)):
+            raise ValueError("HTTP headers and media folders must not be empty")
         from urllib.parse import urlsplit
         for name, value in (("MOHA_API_BASE", self.moha_api_base), ("MOF_API_BASE", self.mof_api_base)):
             parsed = urlsplit(value)

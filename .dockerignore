@@ -1,0 +1,14 @@
+.env
+.git
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache
+tests
+examples
+article.json
+crawl_realtime_articles_nhat
+realtime_images
+realtime_videos
+Dockerfile
+compose.yml

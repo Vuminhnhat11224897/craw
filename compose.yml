@@ -1,16 +1,24 @@
+# Media is mounted at the same path as on the host, so paths returned in the
+# API response and metadata.json are valid on the host too.
 services:
   realtime-news:
-    build:
-      context: ..
-      dockerfile: craw_real_times/Dockerfile
-      args:
-        PYTHON_VERSION: ${PYTHON_VERSION:?Set PYTHON_VERSION in craw_real_times/.env}
+    build: .
+    image: craw-real-times:latest
+    container_name: craw-real-times
     env_file: .env
     environment:
-      REALTIME_LISTEN_HOST: ${REALTIME_CONTAINER_LISTEN_HOST:?Set REALTIME_CONTAINER_LISTEN_HOST}
-      IMAGES_FOLDER: ${REALTIME_CONTAINER_IMAGES_FOLDER:?Set REALTIME_CONTAINER_IMAGES_FOLDER}
+      REALTIME_LISTEN_HOST: 0.0.0.0
+      REALTIME_LISTEN_PORT: "8101"
+      IMAGES_FOLDER: /data/crawl_realtime_articles_nhat/realtime_images
+      VIDEOS_FOLDER: /data/crawl_realtime_articles_nhat/realtime_videos
+    user: "1000:1000"
     ports:
-      - "${REALTIME_BIND_ADDRESS:?Set REALTIME_BIND_ADDRESS}:${REALTIME_HOST_PORT:?Set REALTIME_HOST_PORT}:${REALTIME_LISTEN_PORT:?Set REALTIME_LISTEN_PORT}"
+      - "${REALTIME_BIND_ADDRESS:-127.0.0.1}:${REALTIME_HOST_PORT:-8101}:8101"
     volumes:
-      - ./realtime_images:${REALTIME_CONTAINER_IMAGES_FOLDER:?Set REALTIME_CONTAINER_IMAGES_FOLDER}
+      - /data/crawl_realtime_articles_nhat:/data/crawl_realtime_articles_nhat
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped

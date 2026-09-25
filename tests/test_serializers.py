@@ -60,7 +60,7 @@ class ArticleExportTests(unittest.TestCase):
         article_id = data["articles"][0]["id"]
         self.assertEqual(data["article_images"][0]["article_id"], article_id)
         self.assertEqual(data["article_videos"][0]["article_id"], article_id)
-        self.assertEqual(export["persistence_status"], "not_requested")
+        self.assertNotIn("persistence_status", export)
 
     def test_encode_returns_utf8_json_bytes_with_a_final_newline(self) -> None:
         encoded = encode_article_export({"title": "Bản tin tiếng Việt"})

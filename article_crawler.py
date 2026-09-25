@@ -13,6 +13,7 @@ import requests
 from bs4 import BeautifulSoup, Tag
 
 from .config import SiteConfig
+from .errors import CrawlError
 from .settings import Settings
 from .extractor.article import ArticleExtractor, _is_in_excluded_section, _prettify_slug, _render_moha_article_html, _render_mof_article_html
 
@@ -281,6 +282,14 @@ def _extract_images_and_videos(soup: BeautifulSoup, base_url: str) -> tuple[List
 
     return images, videos
 
+_NOT_FOUND_PAGE_NAMES = {"404", "not-found", "notfound", "page-not-found", "khong-tim-thay", "error-404", "loi-404"}
+
+
+def _is_not_found_url(url: str) -> bool:
+    segment = (urlparse(url).path or "/").rstrip("/").rsplit("/", 1)[-1].lower()
+    return segment.rsplit(".", 1)[0] in _NOT_FOUND_PAGE_NAMES if segment else False
+
+
 class ArticleCrawler:
     """Single-URL crawler with service-owned parsing rules and no persistence."""
 
@@ -307,8 +316,17 @@ class ArticleCrawler:
             raise SkipArticle(f"URL does not match an article path for site {self.site.key}: {url}")
         if self._is_denied_article_url(normalized_url):
             raise SkipArticle(f"Article URL is excluded for site {self.site.key}: {url}")
+        if self._is_home_url(normalized_url):
+            raise SkipArticle(f"URL is the site home page: {url}")
 
         html = self._fetch_article_html(normalized_url)
+        # Some sites redirect a missing article to the home page or a 404 page served
+        # with status 200 (vnexpress: 302 -> /404.html) instead of returning 404.
+        final_url = getattr(self.client, "last_url", None)
+        if isinstance(final_url, str) and final_url != normalized_url and (
+            self._is_home_url(final_url) or _is_not_found_url(final_url)
+        ):
+            raise CrawlError("ARTICLE_NOT_FOUND", "The article was not found on the news source.", 404)
         html = self._maybe_fetch_moha_article_html(normalized_url, html)
         html = self._maybe_fetch_mof_article_html(normalized_url, html)
         parsed = self._parse_article(
@@ -477,6 +495,11 @@ class ArticleCrawler:
         if slug in {"mof", "btc", _MOF_ROOT_SLUG, "search", "content"}:
             return None
         return slug or None
+
+    def _is_home_url(self, url: str) -> bool:
+        path = (urlparse(url).path or "/").rstrip("/")
+        home_path = (getattr(self.site, "home_path", None) or "/").rstrip("/")
+        return path in ("", home_path) or path.lower() in ("/index.html", "/index.htm", "/index.php", "/home")
 
     def _is_denied_article_url(self, url: str) -> bool:
         prefixes = getattr(self.site, "deny_article_prefixes", ())

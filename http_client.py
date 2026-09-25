@@ -30,6 +30,8 @@ class HttpClient:
     def __init__(self, site: SiteConfig, settings: Settings, deadline: Deadline, limiter: DomainLimiter):
         self.site, self.settings, self.deadline, self.limiter = site, settings, deadline, limiter
         self.session = requests.Session()
+        # Final URL after redirects of the last successful request.
+        self.last_url = None
         self.session.trust_env = False
         self.session.headers.update({
             "User-Agent": settings.http_user_agent,
@@ -135,5 +137,6 @@ class HttpClient:
                             raise CrawlError("UPSTREAM_ERROR", "The upstream response exceeds the size limit.", 502)
                     response._content = bytes(body)
                     response._content_consumed = True
+                    self.last_url = current
                     return response
         raise CrawlError("UPSTREAM_ERROR", "Too many upstream redirects.", 502)

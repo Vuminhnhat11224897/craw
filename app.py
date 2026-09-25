@@ -66,12 +66,12 @@ def create_app(settings: Settings | None = None, *, service=None) -> FastAPI:
     async def invalid_request(request: Request, exc: RequestValidationError):
         return JSONResponse(status_code=422, content={
             "request_id": request.state.request_id, "status": "error",
-            "error": {"code": "INVALID_OPTIONS", "message": "Check url, save_to_db and download_images.", "retryable": False,
+            "error": {"code": "INVALID_OPTIONS", "message": "Check url and download_images.", "retryable": False,
                       "details": [{"field": ".".join(map(str, item["loc"])), "message": item["msg"]} for item in exc.errors()]},
         })
 
     @application.post("/internal/v1/articles/crawl", dependencies=[Depends(authorize)], response_class=Response,
-                      responses={200: {"description": "UTF-8 JSON file containing the three DB tables", "content": {"application/json": {}}}})
+                      responses={200: {"description": "UTF-8 JSON file with the article, image and video rows", "content": {"application/json": {}}}})
     async def crawl(body: CrawlRequest, request: Request):
         try:
             result = await runtime.run(lambda deadline: crawl_service.crawl(body, request.state.request_id, deadline))

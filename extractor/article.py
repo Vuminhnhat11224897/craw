@@ -2098,6 +2098,15 @@ def _extract_cafef_category(_: str, soup: BeautifulSoup) -> Tuple[str | None, st
     return category_id, category_name
 
 
+def _extract_tuoitre_category(_: str, soup: BeautifulSoup) -> Tuple[str | None, str | None]:
+    # Top-level category link, e.g. <div class="detail-cate"><a href="/the-gioi.htm">Thế giới</a></div>
+    link = soup.select_one("div.detail-cate a[href]")
+    if not link:
+        return None, None
+    category_name = _normalize_whitespace(link.get_text(" ", strip=True)) or None
+    return _slug_from_url(link.get("href")), category_name
+
+
 def _extract_baodongkhoi_category(_: str, soup: BeautifulSoup) -> Tuple[str | None, str | None]:
     explicit_id: str | None = None
     category_name: str | None = None
@@ -3220,6 +3229,7 @@ _CATEGORY_EXTRACTORS: dict[str, Callable[[str, BeautifulSoup], Tuple[str | None,
     "kenh14_category": _extract_kenh14_category,
     "cafebiz_category": _extract_cafebiz_category,
     "cafef_category": _extract_cafef_category,
+    "tuoitre_category": _extract_tuoitre_category,
     "baocamau_category": _extract_baocamau_category,
     "baohaugiang_category": _extract_baohaugiang_category,
     "baodongkhoi_category": _extract_baodongkhoi_category,

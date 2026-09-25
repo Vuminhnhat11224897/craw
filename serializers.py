@@ -41,8 +41,6 @@ def build_article_export(
     article_namespace: uuid.UUID | None = None,
     max_videos_per_article: int = Settings.max_videos_per_article,
     image_records: Sequence[tuple[str, str]] | None = None,
-    persistence_status: str = "not_requested",
-    source: str = "live",
 ) -> dict[str, Any]:
     """Create a JSON-ready export with every column in the three DB tables."""
     exported_at = now or datetime.now(timezone.utc)
@@ -109,8 +107,6 @@ def build_article_export(
         "schema_version": "1.0",
         "request_id": request_id,
         "status": "success",
-        "source": source,
-        "persistence_status": persistence_status,
         "exported_at": exported_at_utc.isoformat().replace("+00:00", "Z"),
         "generated_timestamp_timezone": record_timezone,
         "duration_ms": 0,
@@ -118,42 +114,6 @@ def build_article_export(
             "articles": [article_row],
             "article_images": images,
             "article_videos": videos,
-        },
-        "warnings": [],
-    }
-
-
-def build_export_from_rows(
-    article_row: Mapping[str, Any],
-    image_rows: Sequence[Mapping[str, Any]],
-    video_rows: Sequence[Mapping[str, Any]],
-    *,
-    request_id: str,
-    duration_ms: int,
-    record_timezone: str,
-    source: str,
-    persistence_status: str,
-) -> dict[str, Any]:
-    exported_at = datetime.now(timezone.utc)
-    return {
-        "schema_version": "1.0",
-        "request_id": request_id,
-        "status": "success",
-        "source": source,
-        "persistence_status": persistence_status,
-        "exported_at": exported_at.isoformat().replace("+00:00", "Z"),
-        "generated_timestamp_timezone": record_timezone,
-        "duration_ms": max(int(duration_ms), 0),
-        "data": {
-            "articles": [{key: _field_value(value) for key, value in article_row.items()}],
-            "article_images": [
-                {key: _field_value(value) for key, value in row.items()}
-                for row in image_rows
-            ],
-            "article_videos": [
-                {key: _field_value(value) for key, value in row.items()}
-                for row in video_rows
-            ],
         },
         "warnings": [],
     }
