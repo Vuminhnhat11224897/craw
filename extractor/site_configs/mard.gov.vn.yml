@@ -1,0 +1,11 @@
+'mard.gov.vn':
+  title_selectors:
+    - 'meta[property="og:title"]'
+  description_selectors:
+    - 'meta[property="og:description"]'
+    - 'div#divArticleDescription > p'
+  main_container_selectors:
+    - 'div#divArticleDescription'
+  main_container_keywords:
+    - 'details'
+    - 'htmlcontent'

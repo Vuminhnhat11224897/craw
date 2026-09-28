@@ -1,0 +1,16 @@
+'vpcp.chinhphu.vn':
+  title_selectors:
+    - 'h1.detail-title'
+    - 'h1'
+  description_selectors:
+    - '.detail-sapo'
+  main_container_selectors:
+    - 'div.detail-content'
+  main_container_keywords:
+    - 'detail-content'
+    - 'detail'
+  excluded_section_selectors:
+    - '.kbwscwl-relatedbox'
+    - 'div.type-6'
+  category_extractors:
+    - 'breadcrumb_category'

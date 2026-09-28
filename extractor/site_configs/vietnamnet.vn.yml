@@ -1,0 +1,8 @@
+'vietnamnet.vn':
+  excluded_section_selectors:
+    - 'div.ck-cms-insert-neww-group.vnn-template-noneditable.articles-edit'
+  category_extractors:
+    - 'vietnamnet_category'
+  tag_extractors:
+    - 'vietnamnet_tags'
+  inline_media_only: true

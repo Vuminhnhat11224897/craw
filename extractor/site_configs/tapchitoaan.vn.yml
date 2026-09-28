@@ -1,0 +1,13 @@
+'tapchitoaan.vn':
+  title_selectors:
+    - 'h1'
+  description_selectors:
+    - 'h5.short-desc'
+  main_container_selectors:
+    - 'div.post-entry'
+  excluded_section_selectors:
+    - 'p.border-bottom'
+    - 'span.author'
+  category_extractors:
+    - 'tapchitoaan_category'
+  allow_extensionless_images: true

@@ -1,0 +1,19 @@
+# Images use MinIO configured through .env; no local media or metadata files.
+services:
+  realtime-news:
+    build: .
+    image: craw-real-times:latest
+    container_name: craw-real-times
+    env_file: .env
+    environment:
+      REALTIME_LISTEN_HOST: 0.0.0.0
+      REALTIME_LISTEN_PORT: "8101"
+    user: "1000:1000"
+    ports:
+      - "${REALTIME_BIND_ADDRESS:-127.0.0.1}:${REALTIME_HOST_PORT:-8101}:8101"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8101/health/ready', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

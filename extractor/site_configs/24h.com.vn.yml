@@ -1,0 +1,12 @@
+'24h.com.vn':
+  description_selectors:
+    - 'h2#article_sapo'
+    - 'h2.cate-24h-foot-arti-deta-sum'
+  main_container_selectors:
+    - 'article#article_body'
+    - 'article.cate-24h-foot-arti-deta-content-main'
+  main_container_keywords:
+    - 'article_body'
+    - 'cate-24h-foot-arti-deta-content-main'
+  category_extractors:
+    - 'twentyfourh_category'

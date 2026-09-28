@@ -1,0 +1,18 @@
+'cema.gov.vn':
+  title_selectors:
+    - 'meta[property="og:title"]'
+    - '#printContent h3'
+    - 'h3'
+    - 'title'
+  description_selectors:
+    - 'meta[property="og:description"]'
+    - '#printContent h4'
+    - 'h4'
+  main_container_selectors:
+    - '#divNewsDetails'
+    - '#printContent #divNewsDetails'
+  main_container_keywords:
+    - 'divNewsDetails'
+    - 'newdetail-font'
+  category_extractors:
+    - 'breadcrumb_category'

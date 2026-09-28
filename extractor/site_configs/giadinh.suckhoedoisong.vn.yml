@@ -1,0 +1,31 @@
+'giadinh.suckhoedoisong.vn':
+  title_selectors:
+    - 'h1.detail-title[data-role=''title'']'
+    - 'h1.detail-title'
+  description_selectors:
+    - 'h2.detail-sapo[data-role=''sapo'']'
+    - 'h2.detail-sapo'
+  main_container_selectors:
+    - 'div.detail-content.afcbc-body[data-role=''content'']'
+    - 'div.detail-content[data-role=''content'']'
+    - 'div.detail__content-page div.detail-content'
+  main_container_keywords:
+    - 'detail-content'
+    - 'afcbc-body'
+    - 'content'
+  excluded_section_selectors:
+    - 'div[type=''RelatedOneNews'']'
+    - 'div.ads'
+    - 'div.detail-tag'
+    - 'div.detail-like-fb'
+    - 'div.comment'
+    - 'div.ykcb'
+  inline_image_container_selectors:
+    - 'div.detail-content.afcbc-body[data-role=''content'']'
+  inline_media_only: true
+  include_metadata_images: false
+  excluded_image_urls:
+    - 'https://static.mediacdn.vn/giadinhnet/images/ava_inter.png'
+    - 'https://static.mediacdn.vn/thumb_w/50/giadinhnet/image/google.png'
+  category_extractors:
+    - 'giadinh_suckhoedoisong_category'

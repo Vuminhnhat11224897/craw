@@ -1,0 +1,14 @@
+'moj.gov.vn':
+  title_selectors:
+    - 'div.news-details h1'
+    - 'h1'
+  description_selectors:
+    - 'div.news-details div.mota'
+    - 'div.mota'
+  main_container_selectors:
+    - 'div.news-details div.news-content.box-content-news-detail'
+    - 'div.news-details div.news-content'
+    - 'div.news-content'
+  main_container_keywords:
+    - 'news-content'
+    - 'box-content-news-detail'

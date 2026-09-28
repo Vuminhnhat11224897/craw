@@ -1,0 +1,11 @@
+'mof.gov.vn':
+  title_selectors:
+    - 'h1.mof-article__title'
+    - 'h1'
+  description_selectors:
+    - '.mof-article__desc'
+  main_container_selectors:
+    - '.mof-article__content'
+    - 'article.mof-article'
+  main_container_keywords:
+    - 'mof-article'

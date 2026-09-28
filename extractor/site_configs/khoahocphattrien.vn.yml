@@ -1,0 +1,16 @@
+'khoahocphattrien.vn':
+  title_selectors:
+    - 'h1.entry-title'
+  description_selectors:
+    - "p[itemprop='description']"
+  main_container_selectors:
+    - '.td-post-content'
+  excluded_section_selectors:
+    - '#sapoads'
+    - "div[id*='Adv']"
+    - 'div.ads_full'
+    - 'div.ads300'
+    - 'div.td-post-sharing'
+    - 'div.td-post-source-tags'
+  category_extractors:
+    - 'khoahocphattrien_category'

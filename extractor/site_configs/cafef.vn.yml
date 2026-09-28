@@ -1,0 +1,17 @@
+'cafef.vn':
+  main_container_selectors:
+    - 'div#mainContent.detail-cmain'
+    - 'div.detail-cmain.ss#mainContent'
+    - 'div.detail-cmain.ss'
+    - 'div#cafef-interactive-longform'
+    - 'div.longform'
+    - 'div.magazine-detail'
+    - 'div.magazine-content'
+  main_container_keywords:
+    - 'detail-cmain'
+    - 'maincontent'
+    - 'detail'
+    - 'longform'
+    - 'magazine'
+  category_extractors:
+    - 'cafef_category'

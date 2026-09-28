@@ -1,0 +1,12 @@
+'baodongthap.vn':
+  title_selectors:
+    - 'h1.title'
+    - 'h1'
+  main_container_selectors:
+    - '#contentNews .singular-content'
+    - '#contentNews'
+  main_container_keywords:
+    - 'contentNews'
+    - 'singular-content'
+  category_extractors:
+    - 'baodongthap_category'

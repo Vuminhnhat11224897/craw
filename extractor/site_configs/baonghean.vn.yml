@@ -1,0 +1,15 @@
+'baonghean.vn':
+  title_selectors:
+    - '.sc-longform-header-title'
+    - 'h1'
+    - 'meta[property=''og:title'']'
+  description_selectors:
+    - '.sc-longform-header-sapo'
+    - 'meta[name=''description'']'
+  main_container_selectors:
+    - 'article.entry'
+    - 'article'
+  excluded_section_selectors:
+    - '.sc-related-articles'
+    - '.sc-longform-header'
+    - '.sc-empty-layer'

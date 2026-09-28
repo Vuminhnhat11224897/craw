@@ -1,0 +1,13 @@
+'baoquangngai.vn':
+  title_selectors:
+    - 'h1.title'
+    - 'h1'
+  description_selectors:
+    - 'p.sapo'
+    - '#body .sapo'
+  main_container_selectors:
+    - '#content'
+  excluded_section_selectors:
+    - '.same'
+  category_extractors:
+    - 'baoquangngai_category'

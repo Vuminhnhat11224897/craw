@@ -1,0 +1,5 @@
+'thanhtra.gov.vn':
+  main_container_selectors:
+    - '.article'
+  excluded_section_selectors:
+    - '.other_assets'

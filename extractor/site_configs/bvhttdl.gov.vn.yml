@@ -1,0 +1,12 @@
+'bvhttdl.gov.vn':
+  title_selectors:
+    - 'h2.title'
+    - 'title'
+  description_selectors:
+    - 'p.sapo'
+  main_container_selectors:
+    - 'div.entry-body'
+  main_container_keywords:
+    - 'entry-body'
+  category_extractors:
+    - 'bvhttdl_category'

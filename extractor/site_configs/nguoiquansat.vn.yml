@@ -1,0 +1,7 @@
+'nguoiquansat.vn':
+  main_container_selectors:
+    - 'article.entry.entry-no-padding'
+    - 'div.b-maincontent.normal-article-content article.entry'
+  main_container_keywords:
+    - 'entry'
+    - 'article'

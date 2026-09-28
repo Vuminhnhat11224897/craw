@@ -1,0 +1,7 @@
+'bocongan.gov.vn':
+  description_selectors:
+    - 'p.text-justify.mb-\[22px\].text-bca-gray-700.font-medium.lg\:text-\[20px\]'
+    - 'p.text-justify.text-bca-gray-700.font-medium'
+    - 'p.text-bca-gray-700'
+  category_extractors:
+    - 'bocongan_category'

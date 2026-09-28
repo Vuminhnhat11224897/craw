@@ -1,0 +1,15 @@
+'baohaugiang.com.vn':
+  title_selectors:
+    - 'div.news-details-content h1'
+    - 'h1'
+  description_selectors:
+    - 'meta[name=''description'']'
+    - 'meta[property=''og:description'']'
+  main_container_selectors:
+    - 'div.news-details-content div.contentView'
+    - 'div.contentView'
+  main_container_keywords:
+    - 'contentView'
+    - 'news-details-content'
+  category_extractors:
+    - 'baohaugiang_category'

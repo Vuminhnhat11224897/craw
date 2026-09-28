@@ -1,0 +1,8 @@
+'nongnghiepmoitruong.vn':
+  description_selectors:
+    - 'h2.main-intro.detail-intro'
+  main_container_selectors:
+    - 'div.content[itemprop=''articleBody'']'
+  main_container_keywords:
+    - 'content'
+    - 'articleBody'

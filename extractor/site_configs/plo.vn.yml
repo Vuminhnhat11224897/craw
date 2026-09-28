@@ -1,0 +1,3 @@
+'plo.vn':
+  category_extractors:
+    - 'breadcrumb_category'

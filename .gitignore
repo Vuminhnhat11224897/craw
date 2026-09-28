@@ -1,0 +1,5 @@
+.env
+crawl_realtime_articles_nhat/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,22 @@
+'baolamdong.vn':
+  title_selectors:
+    - 'h1.detail-title'
+    - 'h1.title'
+    - 'h1'
+  description_selectors:
+    - '.detail-sapo'
+    - '.article__sapo'
+    - '.sapo'
+    - '.news-sapo p b'
+  main_container_selectors:
+    - '.detail-content'
+    - '.detail-content-body'
+    - '.article__body'
+    - '.article-body'
+    - '.content-detail'
+    - '.entry-content'
+  main_container_keywords:
+    - 'detail-content'
+    - 'article-body'
+    - 'article__body'
+    - 'content-detail'

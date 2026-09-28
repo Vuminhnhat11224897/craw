@@ -1,0 +1,25 @@
+'moit.gov.vn':
+  title_selectors:
+    - 'h1.article-title'
+    - 'h1'
+  description_selectors:
+    - 'div.article-brief p'
+    - 'meta[name="description"]'
+    - 'meta[property="og:description"]'
+  main_container_selectors:
+    - 'div.block-core-a5 > div.article-content.font-size-text.common-content'
+  main_container_keywords: '[]'
+  excluded_section_selectors:
+    - 'div.block-core-a3'
+    - 'div.article-brief'
+    - 'div.social-connect'
+    - '.article-network-share'
+    - '.share-detail-news'
+    - '.speech-section-wrap'
+    - '#audio25'
+    - '.aritcle-source'
+    - '.status-link'
+    - '.article-tags'
+    - '.aritcle-author'
+  category_extractors:
+    - 'moit_category'

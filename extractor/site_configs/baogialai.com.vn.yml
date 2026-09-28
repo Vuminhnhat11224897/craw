@@ -1,0 +1,11 @@
+'baogialai.com.vn':
+  title_selectors:
+    - 'h1.article__title'
+    - 'h1'
+  description_selectors:
+    - '.article__sapo'
+  main_container_selectors:
+    - '.article__body'
+    - '.article__body.zce-content-body.cms-body'
+  main_container_keywords:
+    - 'article__body'

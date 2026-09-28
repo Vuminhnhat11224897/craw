@@ -1,0 +1,13 @@
+'cand.com.vn':
+  description_selectors:
+    - 'div.box-des-detail'
+  main_container_selectors:
+    - 'div.detail-content-body'
+  main_container_keywords:
+    - 'detail-content-body'
+    - 'content'
+  excluded_section_selectors:
+    - '.contref.simplebox.thumbnail'
+    - '.contref.simplebox.vertical'
+  category_extractors:
+    - 'cand_category'

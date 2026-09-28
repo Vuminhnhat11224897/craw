@@ -1,0 +1,9 @@
+'baocamau.vn':
+  main_container_selectors:
+    - 'div.post-content'
+    - 'section.post-content'
+  main_container_keywords:
+    - 'post-content'
+    - 'content'
+  category_extractors:
+    - 'baocamau_category'

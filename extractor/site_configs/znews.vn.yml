@@ -1,0 +1,13 @@
+'znews.vn':
+  description_selectors:
+    - 'p.the-article-summary'
+  main_container_selectors:
+    - 'div.the-article-body'
+    - 'article.the-article div.the-article-body'
+  main_container_keywords:
+    - 'the-article-body'
+    - 'article'
+  excluded_section_selectors:
+    - '#innerarticle'
+  category_extractors:
+    - 'znews_category'

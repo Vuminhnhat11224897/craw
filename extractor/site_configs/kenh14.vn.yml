@@ -1,0 +1,5 @@
+'kenh14.vn':
+  category_extractors:
+    - 'kenh14_category'
+  tag_extractors:
+    - 'kenh14_tags'

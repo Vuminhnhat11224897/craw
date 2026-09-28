@@ -1,0 +1,9 @@
+'baokhanhhoa.vn':
+  title_selectors:
+    - 'h1.head_title'
+  description_selectors:
+    - '.content-detail p strong'
+  main_container_selectors:
+    - '.content-detail'
+  category_extractors:
+    - 'baokhanhhoa_category'

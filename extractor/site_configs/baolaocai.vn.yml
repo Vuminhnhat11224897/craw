@@ -1,0 +1,14 @@
+'baolaocai.vn':
+  main_container_selectors:
+    - 'div[data-field=''body'']'
+    - 'div.article__body.zce-content-body.cms-body[itemprop=''articleBody'']'
+    - 'div.article__body.zce-content-body.cms-body'
+    - 'div.article__body.cms-body'
+    - 'div.article__body'
+  main_container_keywords:
+    - 'article__body'
+    - 'cms-body'
+    - 'zce-content-body'
+    - 'article'
+  tag_extractors:
+    - 'vneconomy_tags'

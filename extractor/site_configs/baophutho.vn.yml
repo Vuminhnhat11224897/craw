@@ -1,0 +1,12 @@
+'baophutho.vn':
+  title_selectors:
+    - 'h1.pTitle'
+  description_selectors:
+    - 'p.pHead'
+  main_container_selectors:
+    - '#dcontent'
+  main_container_keywords:
+    - 'dcontent'
+  excluded_section_selectors:
+    - 'h1.pTitle'
+    - 'p.pHead'

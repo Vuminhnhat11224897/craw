@@ -1,0 +1,3 @@
+'tuoitre.vn':
+  category_extractors:
+    - 'tuoitre_category'

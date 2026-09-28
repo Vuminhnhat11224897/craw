@@ -1,0 +1,10 @@
+'hanoimoi.vn':
+  main_container_selectors:
+    - 'div.b-maincontent'
+    - '.b-maincontent'
+  main_container_keywords:
+    - 'b-maincontent'
+    - 'maincontent'
+  excluded_section_selectors:
+    - 'div.c-box:has(.c-box__title__name:-soup-contains(''Bài liên quan''))'
+    - 'div.c-box:has(.c-box__title__name:-soup-contains(''Bài đọc tiếp''))'

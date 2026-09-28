@@ -1,0 +1,12 @@
+'baodanang.vn':
+  main_container_selectors:
+    - 'div.b-maincontent .entry'
+    - 'div.b-maincontent'
+    - '.b-maincontent .entry'
+  main_container_keywords:
+    - 'b-maincontent'
+    - 'entry'
+    - 'maincontent'
+  excluded_section_selectors:
+    - 'div.sc-longform-header'
+    - 'div.sc-empty-layer'

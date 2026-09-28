@@ -1,0 +1,25 @@
+'vietnamfinance.vn':
+  title_selectors:
+    - 'meta[property=''og:title'']'
+    - 'meta[name=''twitter:title'']'
+    - 'h1'
+  description_selectors:
+    - 'meta[name=''description'']'
+    - 'meta[property=''og:description'']'
+    - 'h2.sapo'
+    - 'div.sapo'
+    - 'p.sapo'
+  main_container_selectors:
+    - 'div.detail-content'
+    - 'div.detail__content'
+    - 'div.content-detail'
+    - 'div.article-content'
+    - 'article'
+    - 'div[itemprop=''articleBody'']'
+  main_container_keywords:
+    - 'detail'
+    - 'article'
+    - 'content'
+    - 'body'
+  category_extractors:
+    - 'breadcrumb_category'

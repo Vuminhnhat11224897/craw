@@ -1,0 +1,27 @@
+'mattran.org.vn':
+  title_selectors:
+    - 'meta[property=''dcterms.title'']'
+    - '.news-title'
+    - '.detail-title'
+    - '.content-title'
+    - '.title-news'
+    - '.box-detail-title'
+    - '.post-title'
+    - '.article-title'
+  main_container_selectors:
+    - '.article__body'
+    - '.article__content'
+    - '.article-container .article__body'
+    - '#ContentDetail'
+    - '.content-detail'
+    - '.detail-content'
+    - '.news-detail'
+    - '.post-detail'
+    - '.entry-content'
+    - '.article-detail'
+  main_container_keywords:
+    - 'content'
+    - 'detail'
+    - 'article'
+    - 'entry'
+    - 'main'

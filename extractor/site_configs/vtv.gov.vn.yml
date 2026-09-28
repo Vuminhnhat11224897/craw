@@ -1,0 +1,3 @@
+'vtv.gov.vn':
+  category_extractors:
+    - 'vtvgov_category'

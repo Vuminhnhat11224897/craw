@@ -1,0 +1,9 @@
+'baovinhlong.com.vn':
+  description_selectors:
+    - '.sub_first_content strong'
+  main_container_selectors:
+    - '#content .td-post-content'
+    - '#content'
+  main_container_keywords:
+    - 'content-detail'
+    - 'td-post-content'

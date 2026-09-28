@@ -1,0 +1,36 @@
+'baohungyen.vn':
+  title_selectors:
+    - 'h1.name'
+    - 'h1'
+  description_selectors:
+    - 'meta[name=''description'']'
+    - 'meta[property=''og:description'']'
+  main_container_selectors:
+    - '#content-detail'
+    - 'div.content-article #content-detail'
+  main_container_keywords:
+    - 'content-article'
+    - 'content-detail'
+    - 'detail'
+  excluded_section_selectors:
+    - 'div.pseudonym'
+    - 'div.relates'
+    - 'div.topics'
+    - 'div.social'
+    - 'div.print_page'
+    - 'div.block-news-list'
+    - '.related-news'
+    - '.news-related__list'
+    - '.sc-related-articles'
+    - '.article__related'
+    - '.article__box--related'
+    - '.article-related'
+    - '.article__list--related'
+    - '[class*=''tin-lien'']'
+    - '[class*=''tin_lien'']'
+    - '[class*=''tinlienquan'']'
+  inline_image_container_selectors:
+    - 'div.content-article #content-detail'
+    - 'div.content-article'
+  category_extractors:
+    - 'baoquangninh_category'
