@@ -8,10 +8,13 @@ import signal
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import PurePosixPath
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine, text
 
 from .http_client import HttpClient
+from .image_jobs import image_object_key
 from .runtime import Deadline, DomainLimiter
 from .service import IMAGE_EXTENSIONS, put_object
 from .settings import Settings
@@ -39,9 +42,12 @@ def claim(engine):
             SET status = 'processing', attempts = jobs.attempts + 1,
                 claim_token = :token,
                 locked_until = now() + :lease * interval '1 second'
-            FROM selected WHERE jobs.image_id = selected.image_id
+            FROM selected
+            LEFT JOIN article_images AS images ON images.id = selected.image_id
+            WHERE jobs.image_id = selected.image_id
             RETURNING jobs.image_id, jobs.source_url, jobs.article_url,
-                      jobs.object_key, jobs.attempts, jobs.claim_token
+                      jobs.object_key, jobs.attempts, jobs.claim_token, jobs.created_at,
+                      images.article_id, images.sequence_number
         """), {"token": token, "lease": LEASE_SECONDS, "max_attempts": MAX_ATTEMPTS}).mappings().first()
     return dict(row) if row else None
 
@@ -63,7 +69,7 @@ def finish(engine, job, image_url):
         connection.execute(text("""
             UPDATE image_download_jobs
             SET status = :status, locked_until = NULL, claim_token = NULL,
-                last_error = :last_error
+                last_error = :last_error, object_key = :object_key
             WHERE image_id = :image_id AND claim_token = :claim_token
         """), {**job, "status": "downloaded" if updated else "failed",
                "last_error": None if updated else "Image row changed or removed during download"})
@@ -118,6 +124,12 @@ def process(engine, job, settings, limiter):
         mime = (content_type or "").split(";", 1)[0].strip().lower()
         if not content or mime not in IMAGE_EXTENSIONS:
             raise ValueError("Unsupported or empty image response")
+        if job["object_key"].startswith("articles/"):
+            if job["article_id"] is None or job["sequence_number"] is None:
+                raise ValueError("Image row was removed before download")
+            day = job["created_at"].astimezone(ZoneInfo(settings.record_timezone))
+            job["object_key"] = image_object_key(job["article_id"], job["sequence_number"], day)
+        job["object_key"] = str(PurePosixPath(job["object_key"]).with_suffix("." + IMAGE_EXTENSIONS[mime]))
         image_url = put_object(settings, job["object_key"], content, mime, deadline)
         if finish(engine, job, image_url):
             LOGGER.info("image_id=%s status=downloaded bytes=%d", job["image_id"], len(content))

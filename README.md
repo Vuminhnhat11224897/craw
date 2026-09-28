@@ -335,17 +335,24 @@ lại sau khi lease hết; lần thử cuối hết lease được chuyển thà
 trợ: JPEG, PNG, WebP, GIF, AVIF, SVG, BMP, TIFF. Dung lượng không vượt
 `MAX_IMAGE_BYTES`.
 
-Object key cố định để retry không sinh nhiều tên object:
+Object key dùng ngày đưa ảnh vào queue theo `RECORD_TIMEZONE`, ID bài và thứ
+tự ảnh. Ngày được giữ trong job để retry qua ngày khác không đổi thư mục.
+Đuôi file được xác định từ `Content-Type` thực tế khi tải ảnh:
 
 ```text
 Bucket:     news-article-images
-Object key: articles/<article_id>/<image_id>
-DB path:    /news-article-images/articles/<article_id>/<image_id>
+Object key: <ngày>_<tháng>_<năm>/<article_id>_img_<sequence_number>.<extension>
+DB path:    /news-article-images/<ngày>_<tháng>_<năm>/<article_id>_img_<sequence_number>.<extension>
+Ví dụ:      /news-article-images/1_9_2026/ff5fde6b-860b-53e9-ada1-9ba2a98cc40a_img_7.avif
 ```
 
-`image_path` khi tải xong là **đường dẫn tương đối gồm bucket**, không có host
-và không có đuôi file. Hệ thống hiển thị ghép nó với host phục vụ media của
-mình. Bucket private cần backend tạo presigned URL hoặc proxy ảnh; không đưa
+`image_path` khi tải xong là **đường dẫn tương đối gồm bucket**, có đuôi ảnh
+và không có host. Trong queue, key mới giữ tên chưa có đuôi cho tới lúc worker
+xác định MIME; khi hoàn tất, job lưu key đầy đủ đã upload. Job đang chờ dùng
+key cũ `articles/...` được worker đổi sang dạng ngày/ID bài/thứ tự khi xử lý;
+object đã tải xong trước đó được giữ nguyên. Hệ thống hiển thị ghép path với
+host phục vụ media của mình. Bucket private cần backend tạo presigned URL
+hoặc proxy ảnh; không đưa
 secret MinIO cho trình duyệt.
 
 Tra ảnh/job của một bài bằng `psql` hoặc công cụ quản trị DB:

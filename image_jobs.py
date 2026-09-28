@@ -1,6 +1,12 @@
 """Write image jobs in the same transaction as their image rows."""
 
+from datetime import datetime
+
 from sqlalchemy import text
+
+
+def image_object_key(article_id, sequence_number, day):
+    return f"{day.day}_{day.month}_{day.year}/{article_id}_img_{sequence_number}"
 
 
 def enqueue_images(session, article_url: str, images) -> None:
@@ -9,7 +15,9 @@ def enqueue_images(session, article_url: str, images) -> None:
             "image_id": image["id"],
             "source_url": image["image_path"],
             "article_url": article_url,
-            "object_key": f"articles/{image['article_id']}/{image['id']}",
+            "object_key": image_object_key(
+                image["article_id"], image["sequence_number"], datetime.fromisoformat(image["created_at"]),
+            ),
         }
         for image in images if image["image_path"]
     ]
