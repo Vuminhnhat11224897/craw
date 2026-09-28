@@ -5,8 +5,8 @@ ba phần `articles`, `article_images` và `article_videos`. Service không dùn
 database. Hỗ trợ **97 nguồn** (xem [Nguồn được hỗ trợ](#nguồn-được-hỗ-trợ)).
 
 Mặc định API chỉ crawl rồi trả JSON. Gửi thêm `download_images=true` thì
-service tải **ảnh** về `IMAGES_FOLDER` và ghi **metadata video** vào
-`VIDEOS_FOLDER`. Video không được tải về, chỉ lưu link (xem
+service tải **ảnh** lên MinIO bucket `news-article-images`. Không lưu file
+metadata ảnh/video; link video chỉ nằm trong JSON trả về (xem
 [Lưu ảnh và video](#lưu-ảnh-và-video)).
 
 `articles.id` dùng cùng namespace UUIDv5 với luồng cũ `crawl_lastest_news`, nên
@@ -18,8 +18,7 @@ cùng một URL ra cùng ID ở cả hai luồng (xem [ID bài báo](#id-bài-b�
 |---|---|
 | Cách chạy | Docker, container `craw-real-times`, image `craw-real-times:latest` |
 | Địa chỉ | `http://127.0.0.1:8101` (chỉ truy cập được từ chính máy chủ) |
-| Thư mục ảnh | `/data/crawl_realtime_articles_nhat/realtime_images` |
-| Thư mục metadata video | `/data/crawl_realtime_articles_nhat/realtime_videos` |
+| Bucket ảnh | `news-article-images`, xem tại `http://100.91.202.88:9001/browser/news-article-images` |
 | Namespace ID | `3681377d-f509-4554-9d2e-2ee156a60cc0` |
 | Tự khởi động lại | có (`restart: unless-stopped`), kể cả khi reboot máy |
 
@@ -35,8 +34,11 @@ Sao chép `.env.sample` thành `.env` trong thư mục `craw_real_times`, đặt
 |---|---|---|---|
 | `INTERNAL_API_KEY` | có | | Key cho header `X-API-Key` |
 | `ARTICLE_UUIDV5_NAMESPACE` | có | `3681377d-f509-4554-9d2e-2ee156a60cc0` | Namespace sinh ID bài báo, phải trùng `crawl_lastest_news` |
-| `IMAGES_FOLDER` | không | `./crawl_realtime_articles_nhat/realtime_images` | Thư mục lưu ảnh và metadata ảnh |
-| `VIDEOS_FOLDER` | không | `./crawl_realtime_articles_nhat/realtime_videos` | Thư mục lưu metadata video |
+| `MINIO_ENDPOINT` | khi tải ảnh | `http://100.91.202.88:9002` | URL S3 API, dạng `http://host:port`; không dùng URL giao diện `/browser/...` |
+| `MINIO_BUCKET` | không | `news-article-images` | Bucket có sẵn để lưu ảnh |
+| `MINIO_ACCESS_KEY` | khi tải ảnh | trống | Access key hoặc username MinIO |
+| `MINIO_SECRET_KEY` | khi tải ảnh | trống | Secret key hoặc password MinIO |
+| `MINIO_REGION` | không | `us-east-1` | Region của bucket |
 | `REALTIME_LISTEN_HOST` | không | `127.0.0.1` | Địa chỉ server lắng nghe |
 | `REALTIME_LISTEN_PORT` | không | `8101` | Cổng server lắng nghe |
 | `REALTIME_WORKERS` | không | `1` | Chỉ được là `1` |
@@ -44,6 +46,12 @@ Sao chép `.env.sample` thành `.env` trong thư mục `craw_real_times`, đặt
 | `REALTIME_HOST_PORT` | không | `8101` | Chỉ dùng cho Docker: cổng trên host |
 
 Nếu đã có `.env` thì chỉ thêm các biến còn thiếu, giữ nguyên secret hiện có.
+Điền `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` trong `.env`
+trước khi gọi `download_images=true`. MinIO S3 dùng
+`http://100.91.202.88:9002`; cổng 9001 là giao diện quản trị.
+Tài khoản cần quyền ghi object vào bucket. Service không tự tạo bucket hay đổi
+quyền truy cập. Thiếu cấu hình thì chế độ chỉ trả JSON vẫn hoạt động; chế độ
+tải ảnh trả `503 MEDIA_STORAGE_NOT_CONFIGURED`.
 Các thông số vận hành khác (timeout, giới hạn dung lượng, đồng thời, retry, nhịp
 request theo domain, User-Agent, endpoint MOHA/MOF) đều nằm trong `.env.sample`
 và có giá trị mặc định hợp lý. Selector và URL của từng báo nằm trong
@@ -70,7 +78,7 @@ Các file liên quan:
 | File | Nội dung |
 |---|---|
 | [Dockerfile](Dockerfile) | `python:3.11-slim`, cài `requirements.txt`, chạy `python -m craw_real_times` |
-| [compose.yml](compose.yml) | Service `realtime-news`, container `craw-real-times`, port, volume, healthcheck |
+| [compose.yml](compose.yml) | Service `realtime-news`, container `craw-real-times`, port, healthcheck |
 | [.dockerignore](.dockerignore) | Loại `.env`, `tests`, `.git`, thư mục ảnh khỏi image |
 
 Cách container được cấu hình:
@@ -78,12 +86,10 @@ Cách container được cấu hình:
 - **Cổng**: server trong container nghe `0.0.0.0:8101`, publish ra host ở
   `REALTIME_BIND_ADDRESS:REALTIME_HOST_PORT`, mặc định `127.0.0.1:8101`. Muốn
   máy khác hoặc container khác gọi được thì đặt `REALTIME_BIND_ADDRESS=0.0.0.0`.
-- **Thư mục ảnh/video**: `/data/crawl_realtime_articles_nhat` được mount vào
-  container ở **cùng đường dẫn**, nên đường dẫn trong response và
-  `metadata.json` dùng được luôn trên host. `compose.yml` đặt cố định
-  `IMAGES_FOLDER`/`VIDEOS_FOLDER` vào thư mục này, giá trị trong `.env` bị bỏ qua.
-- **Quyền file**: container chạy với uid `1000:1000`, nên ảnh thuộc user
-  `admin1`, không phải `root`.
+- **Ảnh**: upload trực tiếp lên MinIO bằng cấu hình `MINIO_*` trong `.env`,
+  không ghi file ảnh xuống host. `IMAGES_FOLDER` cũ không còn được sử dụng.
+- **Metadata**: không ghi file JSON vào MinIO hoặc ổ đĩa; không cần volume media.
+  `VIDEOS_FOLDER` cũ không còn được sử dụng.
 - **Secret**: `.env` không nằm trong image, chỉ được nạp lúc chạy qua
   `env_file`. Image có thể chia sẻ mà không lộ key.
 - **Healthcheck**: gọi `/health/ready` mỗi 30 s. Hỏng 3 lần liên tiếp thì
@@ -107,9 +113,6 @@ curl http://127.0.0.1:8101/health/ready
 pkill -f "bin/python -m craw_real_times"                    # dừng
 ```
 
-- `IMAGES_FOLDER`/`VIDEOS_FOLDER` nếu là đường dẫn tương đối thì tính theo thư
-  mục đang đứng khi khởi động. `.env` trên máy chủ đặt đường dẫn tuyệt đối
-  `/data/crawl_realtime_articles_nhat/...`.
 - **Chỉ chạy một worker.** Giới hạn đồng thời và nhịp request theo domain được
   giữ trong bộ nhớ của tiến trình, nhiều worker sẽ vượt giới hạn.
 
@@ -147,7 +150,7 @@ Request body:
 | Trường | Kiểu | Mặc định | Ghi chú |
 |---|---|---|---|
 | `url` | string | bắt buộc | 1–2000 ký tự, phải thuộc một báo trong `/internal/v1/sites` |
-| `download_images` | bool | `false` | Tải ảnh và ghi metadata ảnh/video ra đĩa |
+| `download_images` | bool | `false` | Upload file ảnh lên MinIO, không lưu metadata |
 
 Trường lạ trong body sẽ bị từ chối (kể cả `save_to_db` cũ).
 
@@ -180,77 +183,61 @@ Response `200` là file JSON (`Content-Disposition: attachment; filename="articl
                          "sequence_number": 1, "created_at": "…" }]
   },
   "media": {
-    "images_folder": "/data/crawl_realtime_articles_nhat/realtime_images/<article_id>",
-    "images_metadata": "/data/crawl_realtime_articles_nhat/realtime_images/<article_id>/metadata.json",
-    "videos_metadata": "/data/crawl_realtime_articles_nhat/realtime_videos/<article_id>/metadata.json"
+    "images_folder": "<MINIO_ENDPOINT>/news-article-images/28_9_2026",
+    "images_metadata": null,
+    "videos_metadata": null
   },
   "warnings": []
 }
 ```
 
-`media` chỉ có khi gửi `download_images=true`. Trường nào là `null` thì bài
-không có ảnh/video tương ứng (hoặc ghi đĩa lỗi, xem `MEDIA_SAVE_FAILED`).
+`media` chỉ có khi gửi `download_images=true`. `images_folder` là `null`
+khi không có ảnh. `images_metadata` và `videos_metadata` luôn là `null`,
+giữ lại để tương thích cấu trúc response; không có file metadata được lưu.
 
 - `warnings` có thể gồm `CATEGORY_MISSING` (trang không có chuyên mục),
-  `IMAGE_DOWNLOAD_FAILED` (một ảnh tải lỗi, có `sequence_number`) hoặc
-  `MEDIA_SAVE_FAILED` (không ghi được file/metadata ra đĩa).
+  `IMAGE_DOWNLOAD_FAILED` (một ảnh tải hoặc upload lỗi, có `sequence_number`).
 - `image_path`: `status=pending` khi không tải ảnh, là URL gốc. Khi đã tải
-  (`status=downloaded`) là đường dẫn file local. Ảnh tải lỗi có `status=failed`
-  và giữ URL gốc.
+  và upload thành công (`status=downloaded`) là URL object
+  `<MINIO_ENDPOINT>/<MINIO_BUCKET>/<ngày_tháng_năm>/<article_id>_img_<số>.<đuôi>`.
+  Tải hoặc upload lỗi có `status=failed` và giữ URL gốc. URL object không hết
+  hạn và không chứa secret; đọc bucket private vẫn cần xác thực MinIO/S3.
 - `video_path` luôn là URL gốc vì video không được tải về.
 
 Luồng xử lý:
 
 1. Xác định báo từ URL (`UNSUPPORTED_SITE` nếu không hỗ trợ) rồi chuẩn hoá URL.
 2. Tải HTML và trích xuất tiêu đề, nội dung, chuyên mục, tag, ảnh, video.
-3. Nếu `download_images=true`: tải ảnh và ghi metadata như mục dưới.
+3. Nếu `download_images=true`: tải ảnh và upload vào MinIO như mục dưới.
 
 ### Lưu ảnh và video
 
-Mỗi bài có một thư mục, tên là `article_id`, tức UUIDv5 tính từ URL bài (xem
-[ID bài báo](#id-bài-báo)). Cùng một URL luôn ra cùng một thư mục. ID này trùng
-với `data.articles[0].id` trong response.
+Ảnh dùng cấu trúc giống `crawl_lastest_news`: gom theo **ngày crawl**
+(`RECORD_TIMEZONE`, mặc định giờ Việt Nam), tên file là
+`<article_id>_img_<số_thứ_tự>.<đuôi>`, thứ tự bắt đầu từ 1. `article_id` vẫn
+là UUIDv5 của URL bài. Ngày xuất bản không quyết định thư mục ảnh.
+Chỉ lưu file ảnh. Thông tin bài, ảnh và link video chỉ được trả trong JSON API.
 
 ```text
-/data/crawl_realtime_articles_nhat/
-  realtime_images/
-    60b89257-08e8-53e8-8dc8-1f9507694e03/
-      img_1.jpg
-      img_2.jpg
-      metadata.json
-  realtime_videos/
-    60b89257-08e8-53e8-8dc8-1f9507694e03/
-      metadata.json        # chỉ có link video, không có file video
+news-article-images/                 # bucket MinIO
+  28_9_2026/
+    <article_id>_img_1.jpg
+    <article_id>_img_2.png
 ```
 
-`metadata.json` của ảnh:
+Số link video trong JSON tối đa theo `MAX_VIDEOS_PER_ARTICLE`.
 
-```json
-{
-  "article_id": "60b89257-…", "url": "https://vnexpress.net/…-5123580.html",
-  "title": "…", "article_name": "vnexpress", "publish_date": "…",
-  "crawled_at": "2026-09-23T16:51:27+07:00", "request_id": "…",
-  "images": [
-    { "sequence_number": 1, "source_url": "https://…jpg", "status": "downloaded",
-      "file_name": "img_1.jpg", "local_path": "/data/crawl_realtime_articles_nhat/realtime_images/…/img_1.jpg",
-      "content_type": "image/jpeg", "size_bytes": 334020 },
-    { "sequence_number": 2, "source_url": "https://…", "status": "failed" }
-  ]
-}
-```
-
-`metadata.json` của video có cùng phần đầu, thay `images` bằng
-`"videos": [{ "sequence_number": 1, "video_url": "https://…m3u8" }]`. Số video
-tối đa theo `MAX_VIDEOS_PER_ARTICLE`.
-
-- Bài không có ảnh thì không tạo thư mục ảnh. Bài không có video thì không tạo
-  thư mục video.
+- Bài không có ảnh thì không upload object nào.
 - Chỉ nhận response có `Content-Type` là ảnh (jpeg, png, webp, gif, avif, svg,
   bmp, tiff) và không quá `MAX_IMAGE_BYTES`.
-- Crawl lại cùng link thì **thay toàn bộ** thư mục cũ. Ảnh được tải vào một thư
-  mục tạm `.<tên>.<hex>.tmp` rồi mới đổi tên vào chỗ, nên không bao giờ thấy thư
-  mục dở dang. Nếu crawl lỗi giữa chừng (ví dụ timeout) thì thư mục cũ giữ nguyên.
-- Không có dọn dẹp tự động. Cần xoá bớt thì tự xoá thư mục theo nhu cầu.
+- Đuôi file lấy từ URL ảnh; nếu không hợp lệ thì lấy từ `Content-Type`,
+  giống luồng latest. Dữ liệu ảnh được upload nguyên bản, không resize/nén lại.
+- Crawl lại cùng ngày ghi đè object cùng tên. Crawl sang ngày khác tạo prefix
+  ngày mới. Mỗi object được upload riêng; nếu crawl timeout, những object đã
+  upload thành công vẫn còn. Không có thao tác thay nguyên thư mục hay xoá ảnh
+  cũ trong bucket dùng chung.
+- Upload dùng [MinIO Python SDK](https://github.com/minio/minio-py/blob/7.2.20/docs/API.md#put_object)
+  và nằm trong giới hạn thời gian của request crawl.
 
 ### Giới hạn và nhịp request
 
@@ -291,6 +278,7 @@ Mọi lỗi có dạng:
 | 429 | `RATE_LIMITED` | có | Báo đang chặn tần suất |
 | 502 | `UPSTREAM_ERROR` | có | Không kết nối được, báo trả lỗi, quá nhiều redirect, trang quá lớn… |
 | 503 | `BUSY` | có | Hàng chờ đầy, hoặc chờ quá `QUEUE_TIMEOUT_SECONDS` |
+| 503 | `MEDIA_STORAGE_NOT_CONFIGURED` | không | Chưa điền endpoint/tài khoản MinIO cho chế độ tải ảnh |
 | 504 | `CRAWL_TIMEOUT` | có | Báo phản hồi chậm hoặc vượt thời gian tối đa |
 | 500 | `INTERNAL_ERROR` | không | Lỗi không lường trước, xem log theo `request_id` |
 
@@ -311,7 +299,7 @@ cột `articles.url`.
 Namespace chuẩn là **`3681377d-f509-4554-9d2e-2ee156a60cc0`**, đặt trong
 `.env` ở biến `ARTICLE_UUIDV5_NAMESPACE`. Đây là namespace luồng cũ
 `crawl_lastest_news` đang dùng, nên cùng một URL sẽ ra cùng `articles.id` ở cả
-hai luồng. Đổi namespace thì mọi ID (và tên thư mục ảnh/video) đều đổi theo.
+hai luồng. Đổi namespace thì mọi ID và tên file ảnh đều đổi theo.
 
 ### Chuẩn hoá URL
 
@@ -494,7 +482,7 @@ Thêm hoặc sửa nguồn:
 craw_real_times/
   __main__.py          # điểm khởi động, đọc .env, chạy uvicorn
   app.py               # FastAPI: route, xác thực, định dạng lỗi
-  service.py           # luồng crawl một bài, lưu ảnh/metadata
+  service.py           # luồng crawl một bài, upload ảnh vào MinIO
   article_crawler.py   # tải HTML, chuẩn hoá URL, kiểm tra bài báo, trích xuất
   http_client.py       # HTTP có giới hạn thời gian, dung lượng, redirect
   runtime.py           # giới hạn đồng thời, giãn cách theo domain, deadline
@@ -508,4 +496,3 @@ craw_real_times/
   Dockerfile, compose.yml, .dockerignore
   .env.sample          # mẫu cấu hình, .env thật không commit
 ```
-
