@@ -1,3 +1,5 @@
 'vtv.gov.vn':
   category_extractors:
     - 'vtvgov_category'
+  publish_date_selectors:
+    - '.news-credit-editor p'

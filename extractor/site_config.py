@@ -22,6 +22,7 @@ class ArticleSiteConfig:
     inline_image_container_selectors: Tuple[str, ...] = ()
     category_extractors: Tuple[str, ...] = ()
     tag_extractors: Tuple[str, ...] = ()
+    publish_date_selectors: Tuple[str, ...] = ()
     inline_media_only: bool = False
     include_metadata_images: bool = False
     allow_extensionless_images: bool = False

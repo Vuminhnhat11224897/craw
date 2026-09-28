@@ -11,3 +11,5 @@
   #   - '.lg\\:col-span-4.col-span-12.lg\\:pl-4'
   category_extractors:
     - 'baoninhbinh_category'
+  publish_date_selectors:
+    - 'div.italic > span'

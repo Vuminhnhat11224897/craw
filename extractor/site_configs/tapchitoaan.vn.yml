@@ -11,3 +11,5 @@
   category_extractors:
     - 'tapchitoaan_category'
   allow_extensionless_images: true
+  publish_date_selectors:
+    - '.post-meta span'

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from craw_real_times.config.base import SiteConfig
@@ -31,6 +31,16 @@ def _record_time(now: datetime, timezone_name: str) -> datetime:
     return now.astimezone(zone).replace(tzinfo=None)
 
 
+def _to_record_timezone(value: datetime | None, timezone_name: str) -> datetime | None:
+    if value is None:
+        return None
+    zone = ZoneInfo(timezone_name)
+    # Sites without an explicit offset publish local Vietnam time.
+    if value.tzinfo is None:
+        return value.replace(tzinfo=zone)
+    return value.astimezone(zone)
+
+
 def build_article_export(
     parsed: ParsedArticle,
     *,
@@ -40,7 +50,6 @@ def build_article_export(
     record_timezone: str = "Asia/Ho_Chi_Minh",
     article_namespace: uuid.UUID | None = None,
     max_videos_per_article: int = Settings.max_videos_per_article,
-    image_records: Sequence[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Create a JSON-ready export with every column in the three DB tables."""
     exported_at = now or datetime.now(timezone.utc)
@@ -65,7 +74,7 @@ def build_article_export(
             ArticleCrawler._join_tags(parsed.tags), Article.tags
         ),
         "url": url,
-        "publish_date": _field_value(parsed.publish_date),
+        "publish_date": _field_value(_to_record_timezone(parsed.publish_date, record_timezone)),
         "created_at": record_timestamp.isoformat(),
         "updated_at": record_timestamp.isoformat(),
         "article_name": ArticleCrawler._trim_to_column_length(
@@ -74,16 +83,14 @@ def build_article_export(
     }
 
     images: list[dict[str, Any]] = []
-    if image_records is None:
-        image_records = [(url, "pending") for url in parsed.images]
-    for sequence_number, (image_path, status) in enumerate(image_records, start=1):
+    for sequence_number, image_path in enumerate(parsed.images, start=1):
         image_path = ArticleCrawler._trim_to_column_length(image_path, ArticleImage.image_path)
         if image_path:
             images.append({
                 "id": str(generate_uuid7()),
                 "article_id": str(article_id),
                 "image_path": image_path,
-                "status": status,
+                "status": "pending",
                 "sequence_number": sequence_number,
                 "created_at": record_timestamp.isoformat(),
             })

@@ -1,496 +1,488 @@
-# Realtime crawl theo URL
+# Realtime News Crawler — Production
 
-API nhận URL một bài báo, crawl ngay lúc gọi và trả về một file JSON UTF-8 gồm
-ba phần `articles`, `article_images` và `article_videos`. Service không dùng
-database. Hỗ trợ **97 nguồn** (xem [Nguồn được hỗ trợ](#nguồn-được-hỗ-trợ)).
+Service nội bộ crawl một bài báo theo URL, trả JSON để bên gọi lưu bài và
+video. API ảnh riêng ghi ảnh và job vào PostgreSQL; worker tải ảnh, upload lên
+MinIO rồi cập nhật trạng thái từng ảnh trong DB. Hai API chỉ nhận `url`.
 
-Mặc định API chỉ crawl rồi trả JSON. Gửi thêm `download_images=true` thì
-service tải **ảnh** lên MinIO bucket `news-article-images`. Không lưu file
-metadata ảnh/video; link video chỉ nằm trong JSON trả về (xem
-[Lưu ảnh và video](#lưu-ảnh-và-video)).
+Hiện có **97 cấu hình nguồn**. Lấy danh sách đang được service sử dụng qua
+`GET /internal/v1/sites`.
 
-`articles.id` dùng cùng namespace UUIDv5 với luồng cũ `crawl_lastest_news`, nên
-cùng một URL ra cùng ID ở cả hai luồng (xem [ID bài báo](#id-bài-báo)).
+## Luồng production
 
-## Trên máy chủ hiện tại
+```text
+Bên gọi → API crawl → JSON bài + URL ảnh/video → bên gọi lưu bài/video
+        → API ảnh  → article_images + image_download_jobs
+                                           ↓
+                                     image-worker
+                                           ↓
+                                      MinIO → cập nhật article_images
+```
 
-| Mục | Giá trị |
+1. Gọi `POST /internal/v1/articles/crawl` để lấy nội dung. API này không ghi
+   bài, ảnh, video hoặc job vào DB.
+2. Bên gọi lưu `articles` và `article_videos`. Nếu bảng ảnh có khóa ngoại đến
+   `articles`, phải lưu bài trước khi gọi API ảnh.
+3. Khi cần tải ảnh, gọi `POST /internal/v1/articles/images` với cùng URL.
+   API crawl lại bài, ghi ảnh và job trong cùng transaction, trả `202` sau
+   khi commit. API này không lưu bài hoặc video.
+4. Worker upload ảnh rồi cập nhật `article_images.status/image_path`.
+5. Bên gọi đọc DB theo `article_id` hoặc `image_ids` trong response API ảnh.
+   Service không có endpoint tra trạng thái job.
+
+Nếu bên gọi/cron đã lưu dòng ảnh, API ảnh tái dùng ID theo
+`article_id + sequence_number`. Ảnh `downloaded` được giữ nguyên; ảnh `failed`
+được đưa lại vào queue khi gọi API ảnh. Cron lưu ảnh không tự tạo job tải ảnh.
+Khi lưu lại metadata, bên gọi cần giữ đường dẫn/trạng thái ảnh đã tải xong,
+tránh ghi đè chúng bằng dữ liệu `pending` từ JSON crawl.
+
+## Hạ tầng
+
+| Thành phần | Cấu hình production |
 |---|---|
-| Cách chạy | Docker, container `craw-real-times`, image `craw-real-times:latest` |
-| Địa chỉ | `http://127.0.0.1:8101` (chỉ truy cập được từ chính máy chủ) |
-| Bucket ảnh | `news-article-images`, xem tại `http://100.91.202.88:9001/browser/news-article-images` |
-| Namespace ID | `3681377d-f509-4554-9d2e-2ee156a60cc0` |
-| Tự khởi động lại | có (`restart: unless-stopped`), kể cả khi reboot máy |
+| API | Compose service `realtime-news`, container `craw-real-times` |
+| Worker | Compose service `image-worker`, profile `images` |
+| Image chung | `craw-real-times:latest`, Python 3.11 |
+| API trên host | `http://127.0.0.1:8101` mặc định |
+| PostgreSQL | `100.91.202.88:5432`, database `person_articles`, schema `public` |
+| Bảng ảnh và queue | `public.article_images`, `public.image_download_jobs` |
+| MinIO S3 API | `http://100.91.202.88:9002` |
+| MinIO console | `http://100.91.202.88:9001` |
+| Bucket | `news-article-images` |
+| Namespace bài | `3681377d-f509-4554-9d2e-2ee156a60cc0` |
 
-Không dùng cổng `8000` (service khác đang chiếm). Cổng `8100` là cổng của bản
-chạy `nohup` cũ, đã bỏ.
+Máy triển khai cần Docker Engine, Docker Compose v2 và kết nối tới PostgreSQL,
+MinIO, DNS/HTTP(S) của các nguồn báo. Compose này chạy API và worker;
+PostgreSQL/MinIO là dịch vụ có sẵn.
+
+`article_images` phải có các cột `id`, `article_id`, `image_path`, `status`,
+`sequence_number`, `created_at`. Migration queue không tạo các bảng bài/ảnh/video;
+chúng do hệ thống lưu bài quản lý. Tài khoản DB của API/worker cần quyền
+`SELECT`, `INSERT`, `UPDATE` trên bảng ảnh và queue. Tài khoản migration cần
+quyền tạo/sửa bảng và index trong `public`.
+
+Bucket phải tồn tại và tài khoản MinIO phải có quyền upload object. Service
+không tự tạo bucket hoặc đổi quyền truy cập.
 
 ## Cấu hình
 
-Sao chép `.env.sample` thành `.env` trong thư mục `craw_real_times`, đặt
-`INTERNAL_API_KEY` và **giữ nguyên** `ARTICLE_UUIDV5_NAMESPACE`:
-
-| Biến | Bắt buộc | Mặc định | Ý nghĩa |
-|---|---|---|---|
-| `INTERNAL_API_KEY` | có | | Key cho header `X-API-Key` |
-| `ARTICLE_UUIDV5_NAMESPACE` | có | `3681377d-f509-4554-9d2e-2ee156a60cc0` | Namespace sinh ID bài báo, phải trùng `crawl_lastest_news` |
-| `MINIO_ENDPOINT` | khi tải ảnh | `http://100.91.202.88:9002` | URL S3 API, dạng `http://host:port`; không dùng URL giao diện `/browser/...` |
-| `MINIO_BUCKET` | không | `news-article-images` | Bucket có sẵn để lưu ảnh |
-| `MINIO_ACCESS_KEY` | khi tải ảnh | trống | Access key hoặc username MinIO |
-| `MINIO_SECRET_KEY` | khi tải ảnh | trống | Secret key hoặc password MinIO |
-| `MINIO_REGION` | không | `us-east-1` | Region của bucket |
-| `REALTIME_LISTEN_HOST` | không | `127.0.0.1` | Địa chỉ server lắng nghe |
-| `REALTIME_LISTEN_PORT` | không | `8101` | Cổng server lắng nghe |
-| `REALTIME_WORKERS` | không | `1` | Chỉ được là `1` |
-| `REALTIME_BIND_ADDRESS` | không | `127.0.0.1` | Chỉ dùng cho Docker: địa chỉ host publish cổng |
-| `REALTIME_HOST_PORT` | không | `8101` | Chỉ dùng cho Docker: cổng trên host |
-
-Nếu đã có `.env` thì chỉ thêm các biến còn thiếu, giữ nguyên secret hiện có.
-Điền `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` trong `.env`
-trước khi gọi `download_images=true`. MinIO S3 dùng
-`http://100.91.202.88:9002`; cổng 9001 là giao diện quản trị.
-Tài khoản cần quyền ghi object vào bucket. Service không tự tạo bucket hay đổi
-quyền truy cập. Thiếu cấu hình thì chế độ chỉ trả JSON vẫn hoạt động; chế độ
-tải ảnh trả `503 MEDIA_STORAGE_NOT_CONFIGURED`.
-Các thông số vận hành khác (timeout, giới hạn dung lượng, đồng thời, retry, nhịp
-request theo domain, User-Agent, endpoint MOHA/MOF) đều nằm trong `.env.sample`
-và có giá trị mặc định hợp lý. Selector và URL của từng báo nằm trong
-`config/sites` và `extractor/site_configs`.
-
-Sửa `.env` hoặc code xong phải khởi động lại service mới có hiệu lực.
-
-## Chạy bằng Docker (khuyến nghị)
-
-Các lệnh chạy **trong** thư mục `craw_real_times`:
+Các lệnh triển khai chạy trong thư mục chứa [compose.yml](compose.yml):
 
 ```bash
-docker compose up -d --build    # build image và chạy (lần đầu hoặc sau khi sửa code)
-docker compose up -d            # áp dụng lại sau khi sửa .env
-docker compose ps               # trạng thái, cột STATUS phải là "healthy"
-docker compose logs -f          # xem log
-docker compose restart          # khởi động lại
-docker compose down             # dừng và xoá container
-curl http://127.0.0.1:8101/health/ready
+cd /home/ad/crawl_bao/craw_real_times
+# Chỉ thực hiện khi chưa có .env:
+cp -n .env.sample .env
+chmod 600 .env
 ```
 
-Các file liên quan:
+Sửa `.env` để điền key, tài khoản DB và MinIO. Nếu đã có `.env`, thêm các biến
+còn thiếu và giữ secret hiện có. Không dùng nguyên key/password mẫu để chạy.
 
-| File | Nội dung |
+| Biến | Giá trị mẫu/mặc định | Ý nghĩa |
+|---|---|---|
+| `INTERNAL_API_KEY` | cần điền | Key gửi qua header `X-API-Key` |
+| `ARTICLE_UUIDV5_NAMESPACE` | `3681377d-f509-4554-9d2e-2ee156a60cc0` | Giữ nguyên để ID trùng với hệ thống lưu bài |
+| `ARTICLE_DATABASE_URL` | cần điền tài khoản | SQLAlchemy URL của DB ảnh/queue |
+| `MINIO_ENDPOINT` | `http://100.91.202.88:9002` | S3 API; không dùng console hoặc `/browser/...` |
+| `MINIO_BUCKET` | `news-article-images` | Bucket ảnh |
+| `MINIO_ACCESS_KEY` | cần điền | Access key MinIO |
+| `MINIO_SECRET_KEY` | cần điền | Secret key MinIO |
+| `MINIO_REGION` | `us-east-1` | Region ký request upload |
+| `IMAGE_WORKERS` | `4` | Số ảnh tải đồng thời, từ `1` đến `16` |
+| `COMPOSE_PROFILES` | `images` trong file mẫu | Bật worker trong các lệnh Compose thông thường |
+| `RECORD_TIMEZONE` | `Asia/Ho_Chi_Minh` | Múi giờ timestamp bản ghi export |
+
+URL DB mẫu đặt schema production rõ ràng:
+
+```dotenv
+ARTICLE_DATABASE_URL=postgresql+psycopg2://user:password@100.91.202.88:5432/person_articles?options=-csearch_path%3Dpublic
+COMPOSE_PROFILES=images
+```
+
+Thay `user/password` bằng tài khoản thực. URL-encode credentials có ký tự đặc
+biệt như `@`, `:`, `/`, `#`, `%`. Prefix `postgresql+psycopg2://` dành cho
+SQLAlchemy; lệnh `psql` ở dưới dùng tham số kết nối riêng.
+
+### Listener và cổng Docker
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `REALTIME_BIND_ADDRESS` | `127.0.0.1` | IP host Docker publish cổng |
+| `REALTIME_HOST_PORT` | `8101` | Cổng API trên host |
+| `REALTIME_LISTEN_HOST` | `127.0.0.1` | Listener Python; Compose override thành `0.0.0.0` trong container |
+| `REALTIME_LISTEN_PORT` | `8101` | Listener Python; Compose cố định cổng container `8101` |
+| `REALTIME_WORKERS` | `1` | Chỉ chấp nhận `1` vì giới hạn crawl/nhịp domain là process-local |
+
+Mặc định chỉ máy chủ gọi được API qua `127.0.0.1:8101`. Để gọi qua Tailscale,
+đặt `REALTIME_BIND_ADDRESS` thành IP Tailscale của máy triển khai rồi dùng IP
+đó trong URL bên gọi. `0.0.0.0` publish cổng trên mọi interface của host.
+Khi truy cập qua mạng ngoài vùng tin cậy, dùng reverse proxy HTTPS và giới hạn
+truy cập cổng API.
+
+`.env` không được commit/copy vào image. Compose nạp secret qua `env_file` khi
+tạo container. [.env.sample](.env.sample) phải được giữ trong image vì
+`settings.py` và entrypoint đọc nó để lấy giá trị mặc định.
+
+### Giới hạn crawl và HTTP
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `MAX_CONCURRENT_CRAWLS` | `16` | Crawl chạy đồng thời, dùng chung cho hai API |
+| `MAX_QUEUED_CRAWLS` | `200` | Request tối đa đợi slot crawl |
+| `QUEUE_TIMEOUT_SECONDS` | `180` | Thời gian tối đa đợi trong queue |
+| `CRAWL_TIMEOUT_SECONDS` | `30` | Ngân sách tác vụ sau khi có slot |
+| `CONNECT_TIMEOUT_SECONDS` | `3` | Timeout kết nối nguồn |
+| `READ_TIMEOUT_SECONDS` | `10` | Timeout đọc HTTP |
+| `HTTP_MAX_RETRIES` | `1` | Retry HTTP, còn bị giới hạn bởi cấu hình nguồn |
+| `MAX_HTML_BYTES` | `5242880` | HTML/JSON nguồn tối đa 5 MiB |
+| `MAX_IMAGE_BYTES` | `20971520` | Mỗi ảnh tối đa 20 MiB |
+| `MAX_VIDEOS_PER_ARTICLE` | `5` | URL video tối đa trong export |
+| `BLOCKED_IMAGE_URLS` | `https://bqn.1cdn.vn/assets/images/grey.gif` | URL ảnh bị loại, phân cách bằng dấu phẩy |
+| `DEFAULT_DOMAIN_DELAY_SECONDS` | `0.5` | Khoảng nghỉ cùng host, có thể được cấu hình nguồn override |
+| `HTTP_MAX_REDIRECTS` | `6` | Số redirect tối đa |
+| `HTTP_CHUNK_BYTES` | `4096` | Kích thước chunk đọc response |
+| `RETRY_BACKOFF_CAP_SECONDS` | `1` | Giới hạn backoff HTTP; `Retry-After` nguồn có thể dài hơn |
+| `RETRY_AFTER_SECONDS` | `1` | Header gợi ý retry cho lỗi API retryable có HTTP `429/503` |
+
+Request chờ theo thứ tự đến khi hết slot. Queue đầy hoặc chờ quá hạn trả
+`503 BUSY`. Chờ queue không tính vào ngân sách crawl; client/reverse proxy nên
+đặt timeout lớn hơn `210` giây với cấu hình mặc định. Service không cache bài.
+
+| Biến header/API nguồn | Giá trị mẫu/mặc định |
 |---|---|
-| [Dockerfile](Dockerfile) | `python:3.11-slim`, cài `requirements.txt`, chạy `python -m craw_real_times` |
-| [compose.yml](compose.yml) | Service `realtime-news`, container `craw-real-times`, port, healthcheck |
-| [.dockerignore](.dockerignore) | Loại `.env`, `tests`, `.git`, thư mục ảnh khỏi image |
+| `HTTP_USER_AGENT` | Chuỗi trình duyệt trong `.env.sample` |
+| `HTTP_ACCEPT` | `text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8` |
+| `HTTP_JSON_ACCEPT` | `application/json` |
+| `HTTP_IMAGE_ACCEPT` | `image/*,*/*;q=0.8` |
+| `HTTP_ACCEPT_LANGUAGE` | `vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7` |
+| `MOHA_API_BASE` | `https://api-portal.moha.gov.vn/api/Public` |
+| `MOF_API_BASE` | `https://www.mof.gov.vn/api` |
 
-Cách container được cấu hình:
+Hai biến API nguồn phục vụ fallback nội dung từ Bộ Nội vụ và Bộ Tài chính.
 
-- **Cổng**: server trong container nghe `0.0.0.0:8101`, publish ra host ở
-  `REALTIME_BIND_ADDRESS:REALTIME_HOST_PORT`, mặc định `127.0.0.1:8101`. Muốn
-  máy khác hoặc container khác gọi được thì đặt `REALTIME_BIND_ADDRESS=0.0.0.0`.
-- **Ảnh**: upload trực tiếp lên MinIO bằng cấu hình `MINIO_*` trong `.env`,
-  không ghi file ảnh xuống host. `IMAGES_FOLDER` cũ không còn được sử dụng.
-- **Metadata**: không ghi file JSON vào MinIO hoặc ổ đĩa; không cần volume media.
-  `VIDEOS_FOLDER` cũ không còn được sử dụng.
-- **Secret**: `.env` không nằm trong image, chỉ được nạp lúc chạy qua
-  `env_file`. Image có thể chia sẻ mà không lộ key.
-- **Healthcheck**: gọi `/health/ready` mỗi 30 s. Hỏng 3 lần liên tiếp thì
-  Docker đánh dấu `unhealthy`.
-- **Tài nguyên**: khoảng 70 MB RAM khi nhàn rỗi, khoảng 110 MB sau một đợt tải
-  ảnh. CPU tối đa khoảng 1 core.
+## Migration và khởi động
 
-## Chạy trực tiếp bằng Python
+Thứ tự: cấu hình `.env` → kiểm tra bảng ảnh/bucket → migration queue → chạy
+API và worker.
 
-Dùng khi phát triển. Không chạy song song với container vì cùng cổng `8101`.
-
-Yêu cầu Python 3.10+. Chạy **từ thư mục cha** của `craw_real_times` vì đây là
-một package:
+Áp dụng [migration queue](db/migrations/20260928_image_download_jobs.sql) bằng
+tài khoản có quyền DDL. Thay `<db-user>`; `-W` hỏi password:
 
 ```bash
-cd /home/admin1
-python -m pip install -r craw_real_times/requirements.txt
-python -m craw_real_times                                   # chạy foreground
-nohup python -m craw_real_times > realtime.log 2>&1 &       # chạy nền
-curl http://127.0.0.1:8101/health/ready
-pkill -f "bin/python -m craw_real_times"                    # dừng
+psql -h 100.91.202.88 -p 5432 -U '<db-user>' -d person_articles -W \
+  -v ON_ERROR_STOP=1 --single-transaction \
+  -c 'SET search_path TO public;' \
+  -f db/migrations/20260928_image_download_jobs.sql
 ```
 
-- **Chỉ chạy một worker.** Giới hạn đồng thời và nhịp request theo domain được
-  giữ trong bộ nhớ của tiến trình, nhiều worker sẽ vượt giới hạn.
-
-Chạy test:
+Migration tạo queue/index và cập nhật constraint queue cũ để giữ được job
+hoàn tất. Chạy trước khi bật API ảnh/worker; service không tự chạy migration.
 
 ```bash
-cd /home/admin1
-python -m unittest discover -s craw_real_times/tests -t .
+docker compose --profile images config --quiet
+docker compose --profile images up -d --build
+docker compose --profile images ps
+curl --fail --max-time 5 http://127.0.0.1:8101/health/ready
 ```
 
-## Endpoint
+Thay địa chỉ `curl` nếu đã đổi IP/cổng publish. `COMPOSE_PROFILES=images` trong
+`.env` giúp lệnh Compose thông thường cũng chạy worker; các lệnh dưới đây giữ
+rõ `--profile images` để luôn bao gồm cả hai service.
 
-| Method | Path | Cần `X-API-Key` | Mục đích |
+API phải `healthy`; worker phải `Up`, không lặp lỗi DB/MinIO trong log. Hai
+service chạy UID/GID `1000:1000`, có `restart: unless-stopped`. Không cần volume
+media; dữ liệu bền vững nằm ở PostgreSQL và MinIO.
+
+## API
+
+| Method | Endpoint | `X-API-Key` | Kết quả |
 |---|---|---|---|
-| `POST` | `/internal/v1/articles/crawl` | có | Crawl một bài theo URL |
-| `GET` | `/internal/v1/sites` | có | Danh sách báo được hỗ trợ |
-| `GET` | `/internal/openapi.json` | có | Schema OpenAPI |
-| `GET` | `/health/live` | không | Tiến trình còn sống |
-| `GET` | `/health/ready` | không | Cấu hình hợp lệ, trả số nguồn đã cấu hình |
+| `POST` | `/internal/v1/articles/crawl` | có | `200`, file JSON bài/ảnh/video |
+| `POST` | `/internal/v1/articles/images` | có | `202`, ghi ảnh và job |
+| `GET` | `/internal/v1/sites` | có | Nguồn đang được cấu hình |
+| `GET` | `/internal/openapi.json` | có | Schema OpenAPI hiện hành |
+| `GET` | `/health/live` | không | `{"status":"alive"}` |
+| `GET` | `/health/ready` | không | `{"status":"ready","configured_sources":97}` |
 
-Mọi response đều có header `X-Request-ID` và `Cache-Control: no-store`.
+Response do ứng dụng xử lý có `X-Request-ID`, `Cache-Control: no-store`.
+Không có UI `/docs` hoặc ReDoc. Trong Postman, chọn body `raw / JSON` và gửi
+`Content-Type: application/json`, `X-API-Key: <key>`.
 
-```bash
-curl http://127.0.0.1:8101/health/ready
-# {"status":"ready","configured_sources":97}
-
-curl -H "X-API-Key: <key-trong-env>" http://127.0.0.1:8101/internal/v1/sites
-# {"sites":[{"site_key":"24h","base_url":"https://www.24h.com.vn","article_name":"24h"}, …]}
-```
-
-### `POST /internal/v1/articles/crawl`
-
-Request body:
-
-| Trường | Kiểu | Mặc định | Ghi chú |
-|---|---|---|---|
-| `url` | string | bắt buộc | 1–2000 ký tự, phải thuộc một báo trong `/internal/v1/sites` |
-| `download_images` | bool | `false` | Upload file ảnh lên MinIO, không lưu metadata |
-
-Trường lạ trong body sẽ bị từ chối (kể cả `save_to_db` cũ).
+Thiết lập key cho các ví dụ và thay URL mẫu bằng URL bài thực:
 
 ```bash
-curl -X POST "http://127.0.0.1:8101/internal/v1/articles/crawl" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: <key-trong-env>" \
-  -d '{"url":"https://vnexpress.net/duong-dan-bai-bao.html","download_images":true}' \
-  -o article.json
+export REALTIME_API_KEY='<key-trong-.env>'
 ```
 
-Response `200` là file JSON (`Content-Disposition: attachment; filename="article_<id>.json"`):
+### Crawl bài
+
+```bash
+curl --fail-with-body --max-time 240 \
+  -X POST http://127.0.0.1:8101/internal/v1/articles/crawl \
+  -H "X-API-Key: $REALTIME_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://vnexpress.net/duong-dan-bai-bao.html"}'
+```
+
+Body chỉ có `url`, chuỗi từ 1 đến 2000 ký tự. Trường khác như `save_to_db`,
+`download_images` bị từ chối với `422 INVALID_OPTIONS`. URL phải HTTP(S), thuộc
+nguồn được hỗ trợ, không có credentials/cổng tùy chỉnh. Đích tải và redirect
+được kiểm tra để chặn IP private/reserved.
+
+Response `200` là JSON UTF-8 có header
+`Content-Disposition: attachment; filename="article_<article_id>.json"`.
+Để lưu ở phía gọi, thêm `-o article_<article_id>.json`; server không lưu JSON.
+Ví dụ cấu trúc đầy đủ, các ID là placeholder:
 
 ```json
 {
   "schema_version": "1.0",
-  "request_id": "…",
+  "request_id": "<request_id>",
   "status": "success",
-  "exported_at": "2026-09-23T09:11:59.594234Z",
+  "exported_at": "2026-09-28T07:00:00Z",
   "generated_timestamp_timezone": "Asia/Ho_Chi_Minh",
   "duration_ms": 352,
   "data": {
-    "articles": [{ "id": "…", "title": "…", "description": "…", "content": "…",
-                   "category_id": "…", "category_name": "…", "comments": null, "tags": "…",
-                   "url": "…", "publish_date": "…", "created_at": "…", "updated_at": "…",
-                   "article_name": "…" }],
-    "article_images": [{ "id": "…", "article_id": "…", "image_path": "…",
-                         "status": "…", "sequence_number": 1, "created_at": "…" }],
-    "article_videos": [{ "id": "…", "article_id": "…", "video_path": "…",
-                         "sequence_number": 1, "created_at": "…" }]
-  },
-  "media": {
-    "images_folder": "<MINIO_ENDPOINT>/news-article-images/28_9_2026",
-    "images_metadata": null,
-    "videos_metadata": null
+    "articles": [{
+      "id": "<article_id>", "title": "Tiêu đề bài báo",
+      "description": "Mô tả", "content": "Nội dung bài báo",
+      "category_id": "thoi_su", "category_name": "Thời sự",
+      "comments": null, "tags": "Thời sự, Tin tức",
+      "url": "https://vnexpress.net/duong-dan-bai-bao.html",
+      "publish_date": "2026-09-28T13:30:00+07:00",
+      "created_at": "2026-09-28T14:00:00",
+      "updated_at": "2026-09-28T14:00:00", "article_name": "vnexpress"
+    }],
+    "article_images": [{
+      "id": "<image_id>", "article_id": "<article_id>",
+      "image_path": "https://cdn.example.com/anh.jpg", "status": "pending",
+      "sequence_number": 1, "created_at": "2026-09-28T14:00:00"
+    }],
+    "article_videos": [{
+      "id": "<video_id>", "article_id": "<article_id>",
+      "video_path": "https://cdn.example.com/video.mp4",
+      "sequence_number": 1, "created_at": "2026-09-28T14:00:00"
+    }]
   },
   "warnings": []
 }
 ```
 
-`media` chỉ có khi gửi `download_images=true`. `images_folder` là `null`
-khi không có ảnh. `images_metadata` và `videos_metadata` luôn là `null`,
-giữ lại để tương thích cấu trúc response; không có file metadata được lưu.
+`articles` có một bài; không có media thì mảng ảnh/video rỗng. `tags` là chuỗi
+phân cách bằng dấu phẩy, `comments` hiện luôn `null`. Thiếu chuyên mục có thể
+trả warning `CATEGORY_MISSING`. Thiếu ngày xuất bản thì dùng thời điểm hiện tại.
 
-- `warnings` có thể gồm `CATEGORY_MISSING` (trang không có chuyên mục),
-  `IMAGE_DOWNLOAD_FAILED` (một ảnh tải hoặc upload lỗi, có `sequence_number`).
-- `image_path`: `status=pending` khi không tải ảnh, là URL gốc. Khi đã tải
-  và upload thành công (`status=downloaded`) là URL object
-  `<MINIO_ENDPOINT>/<MINIO_BUCKET>/<ngày_tháng_năm>/<article_id>_img_<số>.<đuôi>`.
-  Tải hoặc upload lỗi có `status=failed` và giữ URL gốc. URL object không hết
-  hạn và không chứa secret; đọc bucket private vẫn cần xác thực MinIO/S3.
-- `video_path` luôn là URL gốc vì video không được tải về.
+`exported_at` là UTC. `publish_date` chuyển về `RECORD_TIMEZONE`, có offset;
+`created_at/updated_at` là giờ địa phương không kèm offset, tương ứng timestamp
+không timezone của schema bài. Timestamp export được tạo lại mỗi lần crawl,
+không phải ngày tạo bản ghi gốc trong DB.
 
-Luồng xử lý:
+Ảnh trong JSON crawl giữ URL nguồn và `pending`, chỉ là metadata export. Video
+giữ URL nguồn và không được tải. ID ảnh/video export được sinh mới mỗi lần;
+lấy `image_ids` từ API ảnh để tra những dòng đã lưu trong DB.
 
-1. Xác định báo từ URL (`UNSUPPORTED_SITE` nếu không hỗ trợ) rồi chuẩn hoá URL.
-2. Tải HTML và trích xuất tiêu đề, nội dung, chuyên mục, tag, ảnh, video.
-3. Nếu `download_images=true`: tải ảnh và upload vào MinIO như mục dưới.
+### Yêu cầu tải ảnh
 
-### Lưu ảnh và video
-
-Ảnh dùng cấu trúc giống `crawl_lastest_news`: gom theo **ngày crawl**
-(`RECORD_TIMEZONE`, mặc định giờ Việt Nam), tên file là
-`<article_id>_img_<số_thứ_tự>.<đuôi>`, thứ tự bắt đầu từ 1. `article_id` vẫn
-là UUIDv5 của URL bài. Ngày xuất bản không quyết định thư mục ảnh.
-Chỉ lưu file ảnh. Thông tin bài, ảnh và link video chỉ được trả trong JSON API.
-
-```text
-news-article-images/                 # bucket MinIO
-  28_9_2026/
-    <article_id>_img_1.jpg
-    <article_id>_img_2.png
+```bash
+curl --fail-with-body --max-time 240 \
+  -X POST http://127.0.0.1:8101/internal/v1/articles/images \
+  -H "X-API-Key: $REALTIME_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://vnexpress.net/duong-dan-bai-bao.html"}'
 ```
 
-Số link video trong JSON tối đa theo `MAX_VIDEOS_PER_ARTICLE`.
-
-- Bài không có ảnh thì không upload object nào.
-- Chỉ nhận response có `Content-Type` là ảnh (jpeg, png, webp, gif, avif, svg,
-  bmp, tiff) và không quá `MAX_IMAGE_BYTES`.
-- Đuôi file lấy từ URL ảnh; nếu không hợp lệ thì lấy từ `Content-Type`,
-  giống luồng latest. Dữ liệu ảnh được upload nguyên bản, không resize/nén lại.
-- Crawl lại cùng ngày ghi đè object cùng tên. Crawl sang ngày khác tạo prefix
-  ngày mới. Mỗi object được upload riêng; nếu crawl timeout, những object đã
-  upload thành công vẫn còn. Không có thao tác thay nguyên thư mục hay xoá ảnh
-  cũ trong bucket dùng chung.
-- Upload dùng [MinIO Python SDK](https://github.com/minio/minio-py/blob/7.2.20/docs/API.md#put_object)
-  và nằm trong giới hạn thời gian của request crawl.
-
-### Giới hạn và nhịp request
-
-| Cơ chế | Mặc định | Hành vi |
-|---|---|---|
-| Số crawl đồng thời | `MAX_CONCURRENT_CRAWLS=8` | Request thứ 9 trở đi nhận ngay `503 BUSY` kèm header `Retry-After`, không xếp hàng. Phía gọi cần tự retry. |
-| Giãn cách theo domain | `DEFAULT_DOMAIN_DELAY_SECONDS=0.5` | Các request vào cùng một báo chạy lần lượt, cách nhau ít nhất 0.5s. Các báo khác nhau chạy song song. |
-| Thời gian tối đa mỗi crawl | `CRAWL_TIMEOUT_SECONDS=30` | Quá thời gian thì trả `504 CRAWL_TIMEOUT` |
-| Cache | không có | Gọi lại cùng URL sẽ crawl lại từ báo |
-
-Đo thực tế trên máy chủ (2026-09-23):
-
-- Không tải ảnh: khoảng 250–600 ms mỗi bài.
-- Có tải ảnh: 1–5 s với vài ảnh, 9–13 s với 11–16 ảnh. Thời gian tải ảnh vẫn
-  tính trong `CRAWL_TIMEOUT_SECONDS`.
-- 12 bài của 4 báo, gửi 8 bài song song, có tải ảnh: xong hết sau 13.6 s.
-  Các bài cùng báo chạy lần lượt do giãn cách theo domain.
-
-### Lỗi
-
-Mọi lỗi có dạng:
+Response `202`:
 
 ```json
-{ "request_id": "…", "status": "error",
-  "error": { "code": "BUSY", "message": "…", "retryable": true } }
+{"status":"accepted","article_id":"<article_id>","image_ids":["<image_id>"]}
 ```
 
-| HTTP | `code` | Retry được | Nguyên nhân |
-|---|---|---|---|
-| 401 | `UNAUTHORIZED` | không | Thiếu hoặc sai `X-API-Key` |
-| 422 | `INVALID_OPTIONS` | không | Body sai (có thêm `details`) |
-| 422 | `UNSUPPORTED_SITE` | không | Báo chưa được hỗ trợ |
-| 422 | `INVALID_URL` | không | URL không thuộc host của báo đó |
-| 422 | `NOT_AN_ARTICLE` | không | URL không phải bài báo (kể cả trang chủ) hoặc không đọc được nội dung |
-| 404 | `ARTICLE_NOT_FOUND` | không | Báo trả 404/410, hoặc redirect về trang chủ/trang 404 (vnexpress trả `302 → /404.html`) |
-| 429 | `RATE_LIMITED` | có | Báo đang chặn tần suất |
-| 502 | `UPSTREAM_ERROR` | có | Không kết nối được, báo trả lỗi, quá nhiều redirect, trang quá lớn… |
-| 503 | `BUSY` | có | Hết slot crawl |
-| 503 | `MEDIA_STORAGE_NOT_CONFIGURED` | không | Chưa điền endpoint/tài khoản MinIO cho chế độ tải ảnh |
-| 504 | `CRAWL_TIMEOUT` | có | Báo phản hồi chậm hoặc vượt thời gian tối đa |
-| 500 | `INTERNAL_ERROR` | không | Lỗi không lường trước, xem log theo `request_id` |
+`accepted` nghĩa là ảnh/job cần tạo đã được commit hoặc ảnh có sẵn được tái
+dùng; chưa có nghĩa tải ảnh thành công. Bài không có ảnh trả `image_ids: []`
+và không ghi job.
 
-## ID bài báo
+### Danh sách nguồn và OpenAPI
 
-`articles.id` là **UUIDv5** tính từ URL bài báo đã chuẩn hoá:
-
-```python
-id = uuid.uuid5(ARTICLE_UUIDV5_NAMESPACE, normalized_url)
+```bash
+curl --fail -H "X-API-Key: $REALTIME_API_KEY" \
+  http://127.0.0.1:8101/internal/v1/sites
+curl --fail -H "X-API-Key: $REALTIME_API_KEY" \
+  http://127.0.0.1:8101/internal/openapi.json
 ```
 
-UUIDv5 lấy SHA-1 của `namespace + URL`, giữ 128 bit và đặt version là 5, nên
-**cùng một URL luôn ra cùng một ID**. Không cần tra DB mới biết ID, và crawl lại
-nhiều lần vẫn ra ID cũ. Hàm sinh ID là `article_id_from_url` trong
-[db/models.py](db/models.py). Chuỗi đưa vào UUIDv5 phải đúng bằng giá trị lưu ở
-cột `articles.url`.
+Mỗi nguồn trả `site_key`, `base_url`, `article_name`. `97` là số cấu hình,
+không phải cam kết mọi nguồn luôn truy cập được. Hai cấu hình có thể cùng
+domain; resolver chọn identity `baodongkhoi` cho `dongkhoi.baovinhlong.vn`.
 
-Namespace chuẩn là **`3681377d-f509-4554-9d2e-2ee156a60cc0`**, đặt trong
-`.env` ở biến `ARTICLE_UUIDV5_NAMESPACE`. Đây là namespace luồng cũ
-`crawl_lastest_news` đang dùng, nên cùng một URL sẽ ra cùng `articles.id` ở cả
-hai luồng. Đổi namespace thì mọi ID và tên file ảnh đều đổi theo.
+## Worker ảnh, trạng thái và retry
 
-### Chuẩn hoá URL
-
-Hàm `_normalize_internal_url` trong [article_crawler.py](article_crawler.py)
-chạy trước khi sinh ID:
-
-1. Bỏ khoảng trắng hai đầu và nối với `base_url` của báo.
-2. Chỉ nhận host của báo: `x.vn`, `www.x.vn` hoặc subdomain `*.x.vn`.
-3. Bỏ `#fragment`.
-4. Bỏ query `?...`, trừ các báo có `keep_query_params=True` trong cấu hình.
-5. Bỏ port mặc định (`:443` với https, `:80` với http).
-
-Kết quả với cùng một bài (namespace minh hoạ):
-
-| URL đầu vào | URL sau chuẩn hoá | Cùng ID? |
+| Nơi đọc | Trạng thái | Ý nghĩa |
 |---|---|---|
-| `https://vnexpress.net/a-123.html` | `https://vnexpress.net/a-123.html` | gốc |
-| `https://vnexpress.net/a-123.html?utm=x#top` | `https://vnexpress.net/a-123.html` | có |
-| `https://vnexpress.net:443/a-123.html` | `https://vnexpress.net/a-123.html` | có |
-| `https://www.vnexpress.net/a-123.html` | giữ nguyên | **khác** |
-| `http://vnexpress.net/a-123.html` | giữ nguyên | **khác** |
-| `https://VNEXPRESS.net/a-123.html` | giữ nguyên | **khác** |
-| `https://vnexpress.net/a-123.html/` | giữ nguyên | **khác** |
+| `article_images` | `pending` | Chờ hoặc đang tải |
+| `article_images` | `downloaded` | Đã upload MinIO, `image_path` là đường dẫn object |
+| `article_images` | `failed` | Tải thất bại, giữ URL nguồn |
+| `image_download_jobs` | `pending` | Chờ claim hoặc chờ lần retry kế tiếp |
+| `image_download_jobs` | `processing` | Worker đang giữ lease |
+| `image_download_jobs` | `downloaded` | Job hoàn tất, được giữ lại |
+| `image_download_jobs` | `failed` | Hết lần thử, lỗi kết thúc sớm hoặc dòng ảnh bị thay đổi/xóa |
 
-Bước chuẩn hoá **không** gộp `www`/không `www`, `http`/`https`, chữ hoa trong
-host hay dấu `/` cuối. Phía gọi API nên gửi URL đúng dạng mà báo và
-`crawl_lastest_news` dùng. Nếu không, cùng một bài có thể nhận hai ID khác nhau.
+Worker claim bằng `FOR UPDATE SKIP LOCKED`, lease `120` giây. Mỗi ảnh có ngân
+sách tải/upload `60` giây, tối đa `5` lần xử lý. Lỗi retryable lên lịch sau
+`30`, `120`, `600`, `1800` giây; ảnh rỗng, MIME không hỗ trợ hoặc URL không
+hợp lệ có thể kết thúc ngay. Nếu worker dừng khi đang xử lý, job được claim
+lại sau khi lease hết; lần thử cuối hết lease được chuyển thành `failed`.
 
-Kiểm tra ID của một file export:
+Ảnh được upload nguyên bản, không resize/nén lại, giữ `Content-Type`. MIME hỗ
+trợ: JPEG, PNG, WebP, GIF, AVIF, SVG, BMP, TIFF. Dung lượng không vượt
+`MAX_IMAGE_BYTES`.
 
-```python
-import json, uuid
-a = json.load(open("article.json"))["data"]["articles"][0]
-assert a["id"] == str(uuid.uuid5(uuid.UUID("3681377d-f509-4554-9d2e-2ee156a60cc0"), a["url"]))
-```
-
-### Các ID khác
-
-| Trường | Cách sinh | Ổn định giữa các lần crawl? |
-|---|---|---|
-| `articles.id` | UUIDv5(namespace, URL) | có |
-| `article_images.id`, `article_videos.id` | UUIDv7 (ngẫu nhiên, có gắn thời gian) | không |
-| `request_id` | UUIDv4 ngẫu nhiên, trả trong body và header `X-Request-ID` | không |
-| `category_id` | Lấy từ trang hoặc URL chuyên mục. Nếu không có thì là slug của tên chuyên mục (`thoi_su`). Slug dài hơn 100 ký tự thì cắt bớt và thêm 8 ký tự hex SHA-1. | có |
-
-## Nguồn được hỗ trợ
-
-97 cấu hình, lấy từ `GET /internal/v1/sites` ngày 2026-09-23. URL gửi lên phải
-thuộc host của một nguồn dưới đây (có hoặc không `www`, hoặc subdomain), nếu
-không sẽ nhận `422 UNSUPPORTED_SITE`. `article_name` là giá trị ghi vào
-`articles.article_name`.
-
-<details>
-<summary>Báo, tạp chí (79)</summary>
-
-| Domain | `site_key` | `article_name` |
-|---|---|---|
-| 24h.com.vn | `24h` | `24h` |
-| anninhthudo.vn | `anninhthudo` | `anninhthudo` |
-| baobacninhtv.vn | `baobacninhtv` | `baobacninhtv` |
-| baobinhduong.vn | `baobinhduong` | `baobinhduong` |
-| baocamau.vn | `baocamau` | `baocamau` |
-| baocantho.com.vn | `baocantho` | `baocantho` |
-| baocaobang.vn | `baocaobang` | `baocaobang` |
-| baodaklak.vn | `baodaklak` | `baodaklak` |
-| baodanang.vn | `baodanang` | `baodanang` |
-| baodautu.vn | `baodautu` | `baodautu` |
-| baodienbienphu.vn | `baodienbienphu` | `baodienbienphu` |
-| baodongnai.com.vn | `baodongnai` | `baodongnai` |
-| baodongthap.vn | `baodongthap` | `baodongthap` |
-| baogialai.com.vn | `baogialai` | `baogialai` |
-| baohaiphong.vn | `baohaiphong` | `baohaiphong` |
-| baohatinh.vn | `baohatinh` | `baohatinh` |
-| baohaugiang.com.vn | `baohaugiang` | `baohaugiang` |
-| baohungyen.vn | `baohungyen` | `baohungyen` |
-| baokhanhhoa.vn | `baokhanhhoa` | `baokhanhhoa` |
-| baolaichau.vn | `baolaichau` | `baolaichau` |
-| baolamdong.vn | `baolamdong` | `baolamdong` |
-| baolangson.vn | `baolangson` | `baolangson` |
-| baolaocai.vn | `baolaocai` | `baolaocai` |
-| baonghean.vn | `baonghean` | `baonghean` |
-| baoninhbinh.org.vn | `baoninhbinh` | `baoninhbinh` |
-| baophapluat.vn | `baophapluat` | `baophapluat` |
-| baophutho.vn | `baophutho` | `baophutho` |
-| baoquangngai.vn | `baoquangngai` | `baoquangngai` |
-| baoquangninh.vn | `baoquangninh` | `baoquangninh` |
-| baoquangtri.vn | `baoquangtri` | `baoquangtri` |
-| baosonla.vn | `baosonla` | `baosonla` |
-| baotayninh.vn | `baotayninh` | `baotayninh` |
-| baothainguyen.vn | `baothainguyen` | `baothainguyen` |
-| baothanhhoa.vn | `baothanhhoa` | `baothanhhoa` |
-| baotuyenquang.com.vn | `baotuyenquang` | `baotuyenquang` |
-| baovinhlong.com.vn | `baovinhlong` | `baovinhlong` |
-| baoxaydung.vn | `baoxaydung` | `baoxaydung` |
-| bnews.vn | `bnews` | `bnews` |
-| cafebiz.vn | `cafebiz` | `cafebiz` |
-| cafef.vn | `cafef` | `cafef` |
-| cand.com.vn | `cand` | `cand` |
-| congly.vn | `congly` | `congly` |
-| daibieunhandan.vn | `daibieunhandan` | `daibieunhandan` |
-| dantri.com.vn | `dantri` | `dantri` |
-| dongkhoi.baovinhlong.vn | `baodongkhoi` | `baodongkhoi` |
-| dongkhoi.baovinhlong.vn | `dongkhoi_baovinhlong` | `dongkhoi_baovinhlong` |
-| eva.vn | `eva` | `eva` |
-| genk.vn | `genk` | `genk` |
-| giadinh.suckhoedoisong.vn | `giadinh_suckhoedoisong` | `giadinh_suckhoedoisong` |
-| hanoimoi.vn | `hanoimoi` | `hanoimoi` |
-| huengaynay.vn | `huengaynay` | `huengaynay` |
-| kenh14.vn | `kenh14` | `kenh14` |
-| khoahocphattrien.vn | `khoahocphattrien` | `khoahocphattrien` |
-| laodong.vn | `laodong` | `laodong` |
-| nguoiquansat.vn | `nguoiquansat` | `nguoiquansat` |
-| nhandan.vn | `nhandan` | `nhandan` |
-| nld.com.vn | `nguoilaodong` | `nguoilaodong` |
-| nongnghiepmoitruong.vn | `nongnghiepmoitruong` | `nongnghiepmoitruong` |
-| plo.vn | `plo` | `plo` |
-| qdnd.vn | `qdnd` | `qdnd` |
-| sggp.org.vn | `sggp` | `sggp` |
-| soha.vn | `soha` | `soha` |
-| tapchitoaan.vn | `tapchitoaan` | `tapchitoaan` |
-| thanhnien.vn | `thanhnien` | `thanhnien` |
-| tienphong.vn | `tienphong` | `tienphong` |
-| tinnhanhchungkhoan.vn | `tinnhanhchungkhoan` | `tinnhanhchungkhoan` |
-| travinh.baovinhlong.vn | `travinh_baovinhlong` | `travinh_baovinhlong` |
-| tuoitre.vn | `tuoitre` | `tuoitre` |
-| vietbao.vn | `vietbao` | `vietbao` |
-| vietnambiz.vn | `vietnambiz` | `vietnambiz` |
-| vietnamfinance.vn | `vietnamfinance` | `vietnamfinance` |
-| vietnamnet.vn | `vietnamnet` | `vietnamnet` |
-| vietnamplus.vn | `vietnamplus` | `vietnamplus` |
-| vneconomy.vn | `vneconomy` | `vneconomy` |
-| vnexpress.net | `vnexpress` | `vnexpress` |
-| vov.vn | `vov` | `vov` |
-| vtcnews.vn | `vtcnews` | `vtcnews` |
-| vtv.vn | `vtv` | `vtv` |
-| znews.vn | `znews` | `znews` |
-
-</details>
-
-<details>
-<summary>Cơ quan nhà nước (18)</summary>
-
-| Domain | `site_key` | `article_name` |
-|---|---|---|
-| bocongan.gov.vn | `bocongan` | `bocongan` |
-| bvhttdl.gov.vn | `bvhttdl` | `bvhttdl` |
-| cema.gov.vn | `cema` | `cema` |
-| mae.gov.vn | `mae` | `mae` |
-| mard.gov.vn | `mard` | `mard` |
-| mattran.org.vn | `mattran` | `mattran` |
-| mod.gov.vn | `modgov` | `modgov` |
-| moet.gov.vn | `moet` | `moet` |
-| mof.gov.vn | `mof` | `mof` |
-| mofa.gov.vn | `mofa` | `mofa` |
-| moh.gov.vn | `moh` | `moh` |
-| moha.gov.vn | `moha` | `moha` |
-| moit.gov.vn | `moit` | `moit` |
-| moj.gov.vn | `moj` | `moj` |
-| mst.gov.vn | `mst` | `mst` |
-| thanhtra.gov.vn | `thanhtra` | `thanhtra` |
-| vpcp.chinhphu.vn | `vpcp` | `vpcp` |
-| vtv.gov.vn | `vtvgov` | `vtv` |
-
-</details>
-
-Đã kiểm tra crawl thật (có tải ảnh) ngày 2026-09-23 với vnexpress, tuoitre,
-cafef, thanhnien. Các nguồn khác dùng cấu hình chung với `crawl_lastest_news`
-nhưng chưa được kiểm tra riêng qua API này.
-
-Thêm hoặc sửa nguồn:
-
-- `config/sites/<site>.py`: `base_url`, host được phép, quy tắc URL bài báo.
-- `extractor/site_configs/<domain>.yml`: selector nội dung, ảnh, và
-  `category_extractors` (hàm trích chuyên mục trong `extractor/article.py`).
-- Sửa xong chạy `docker compose up -d --build`.
-
-## Cấu trúc thư mục
+Object key cố định để retry không sinh nhiều tên object:
 
 ```text
-craw_real_times/
-  __main__.py          # điểm khởi động, đọc .env, chạy uvicorn
-  app.py               # FastAPI: route, xác thực, định dạng lỗi
-  service.py           # luồng crawl một bài, upload ảnh vào MinIO
-  article_crawler.py   # tải HTML, chuẩn hoá URL, kiểm tra bài báo, trích xuất
-  http_client.py       # HTTP có giới hạn thời gian, dung lượng, redirect
-  runtime.py           # giới hạn đồng thời, giãn cách theo domain, deadline
-  serializers.py       # dựng JSON export
-  settings.py          # đọc biến môi trường
-  site_resolver.py     # URL -> nguồn
-  db/models.py         # hàm sinh ID article_id_from_url
-  config/sites/        # cấu hình từng nguồn
-  extractor/           # bộ trích xuất nội dung, site_configs/*.yml
-  tests/               # unit test
-  Dockerfile, compose.yml, .dockerignore
-  .env.sample          # mẫu cấu hình, .env thật không commit
+Bucket:     news-article-images
+Object key: articles/<article_id>/<image_id>
+DB path:    /news-article-images/articles/<article_id>/<image_id>
 ```
+
+`image_path` khi tải xong là **đường dẫn tương đối gồm bucket**, không có host
+và không có đuôi file. Hệ thống hiển thị ghép nó với host phục vụ media của
+mình. Bucket private cần backend tạo presigned URL hoặc proxy ảnh; không đưa
+secret MinIO cho trình duyệt.
+
+Tra ảnh/job của một bài bằng `psql` hoặc công cụ quản trị DB:
+
+```sql
+SELECT i.id, i.sequence_number, i.status AS image_status, i.image_path,
+       j.status AS job_status, j.attempts, j.next_attempt_at,
+       j.locked_until, j.last_error
+FROM public.article_images AS i
+LEFT JOIN public.image_download_jobs AS j ON j.image_id = i.id
+WHERE i.article_id = '<article_id>'
+ORDER BY i.sequence_number;
+```
+
+Theo dõi backlog:
+
+```sql
+SELECT status, count(*) AS jobs
+FROM public.image_download_jobs
+GROUP BY status
+ORDER BY status;
+```
+
+Sau khi sửa lỗi nguồn/MinIO, gọi lại API ảnh bằng URL bài để requeue ảnh
+`failed` và reset số lần thử của job thất bại. Job `pending/processing` được
+giữ; ảnh `downloaded` không bị tải lại. Chưa có cơ chế tự xóa lịch sử job.
+
+## Vận hành và cập nhật
+
+```bash
+# Trạng thái và log:
+docker compose --profile images ps
+docker compose logs -f realtime-news
+docker compose --profile images logs -f image-worker
+
+# Áp dụng thay đổi code/dependency:
+docker compose --profile images up -d --build
+
+# Nạp thay đổi .env bằng cách tạo lại container:
+docker compose --profile images up -d --force-recreate
+
+# Khởi động lại với cấu hình container hiện có:
+docker compose --profile images restart
+
+# Dừng / chạy lại container:
+docker compose --profile images stop
+docker compose --profile images start
+
+# Dừng và xóa container/network của service:
+docker compose --profile images down
+```
+
+`restart` không nạp `.env` mới; dùng `up -d --force-recreate` sau khi sửa env.
+`down` không xóa DB hoặc object MinIO vì chúng nằm ngoài Compose này.
+
+Healthcheck gọi `/health/ready` mỗi `30` giây, timeout `5` giây, đánh dấu API
+`unhealthy` sau `3` lần lỗi liên tiếp. Ready phản ánh ứng dụng đã khởi động và
+số cấu hình nguồn; **không kiểm tra DB, MinIO hay khả năng crawl từng nguồn**.
+Worker không có healthcheck riêng: kiểm tra container, log và backlog DB.
+`restart: unless-stopped` xử lý tiến trình thoát; Docker không tự restart chỉ
+vì container bị đánh dấu `unhealthy`.
+
+Log API ghi `request_id`, path, HTTP status, thời gian; đối chiếu bằng request
+ID trong header/body. Log worker dùng `image_id`.
+
+## Lỗi và xử lý sự cố
+
+Lỗi nghiệp vụ/validation có dạng:
+
+```json
+{
+  "request_id": "<request_id>", "status": "error",
+  "error": {"code": "BUSY", "message": "...", "retryable": true}
+}
+```
+
+| HTTP | Code | Retry | Cách xử lý |
+|---|---|---|---|
+| `401` | `UNAUTHORIZED` | không | Kiểm tra `X-API-Key` và key trong env container |
+| `422` | `INVALID_OPTIONS` | không | Chỉ gửi `url`; xem `error.details` |
+| `422` | `UNSUPPORTED_SITE` | không | Đối chiếu `/internal/v1/sites` |
+| `422` | `INVALID_URL` | không | Dùng URL hợp lệ của nguồn, bỏ credentials/cổng tùy chỉnh |
+| `422` | `NOT_AN_ARTICLE` | không | Gửi trang bài có nội dung, không gửi trang chủ/danh mục |
+| `404` | `ARTICLE_NOT_FOUND` | không | Nguồn trả 404/410 hoặc redirect về trang chủ/trang 404 |
+| `429` | `RATE_LIMITED` | có | Giảm tần suất, tuân thủ `Retry-After` |
+| `502` | `UPSTREAM_ERROR` | tùy lỗi | Kiểm tra nguồn, DNS, kết nối, redirect, dung lượng |
+| `503` | `BUSY` | có | Đợi theo `Retry-After`, giảm request đồng thời |
+| `503` | `IMAGE_QUEUE_NOT_CONFIGURED` | không | Điền DB URL, tạo lại API container |
+| `503` | `MEDIA_STORAGE_NOT_CONFIGURED` | không | Điền endpoint/key MinIO, tạo lại container |
+| `503` | `IMAGE_QUEUE_UNAVAILABLE` | có | Kiểm tra kết nối DB rồi retry API ảnh |
+| `504` | `CRAWL_TIMEOUT` | có | Retry sau hoặc kiểm tra nguồn chậm |
+| `500` | `INTERNAL_ERROR` | không | Xem log theo request ID, kiểm tra schema/migration |
+
+Dùng `error.retryable` thực tế để quyết định retry. Một số lỗi upstream như
+JSON nguồn không hợp lệ hoặc response quá lớn không được đánh dấu retryable.
+
+API ảnh trả `202` nhưng ảnh chưa tải: kiểm tra profile worker, `job_status`,
+`next_attempt_at`, `last_error`. Ảnh `downloaded` nhưng không hiển thị: kiểm tra
+cách ghép host với đường dẫn tương đối, quyền đọc bucket/presigned URL. Thiếu
+bảng ảnh/queue có thể gây `500`; áp dụng đúng migration/schema.
+
+## ID và cấu hình nguồn
+
+`articles.id` là UUIDv5 từ namespace cố định và URL chuẩn hóa:
+
+```python
+uuid.uuid5(uuid.UUID("3681377d-f509-4554-9d2e-2ee156a60cc0"), normalized_url)
+```
+
+Cùng namespace và cùng chuỗi URL cho cùng ID. Chuẩn hóa bỏ khoảng trắng hai
+đầu, fragment, query trừ nguồn đặt `keep_query_params=True`, và port mặc định
+`80/443`. Không gộp `www` với host gốc, `http` với `https` hay dấu `/` cuối;
+URL khác chuỗi có thể ra ID khác. Redirect sang bài khác vẫn giữ ID từ URL
+yêu cầu đã chuẩn hóa. ID ảnh/video export dùng UUIDv7, request ID dùng UUIDv4.
+
+Sửa/thêm nguồn trong `config/sites/<site>.py` cho host/quy tắc URL và
+`extractor/site_configs/<domain>.yml` cho selector. Một số nguồn dùng heuristic
+chung khi không có YAML riêng. Build lại cả API và worker sau khi thay đổi.
+
+## File phục vụ production
+
+| File/thư mục | Vai trò |
+|---|---|
+| `__main__.py`, `app.py` | Khởi động API, route, xác thực và lỗi |
+| `schemas.py`, `errors.py` | Body request, lỗi nghiệp vụ |
+| `service.py`, `article_crawler.py` | Crawl URL, dựng kết quả; helper upload cho worker |
+| `http_client.py`, `runtime.py` | HTTP deadline/giới hạn, queue crawl, nhịp domain |
+| `serializers.py`, `db/models.py` | JSON export, cấu trúc cột và sinh ID |
+| `image_registration.py`, `image_jobs.py` | Ghi ảnh/job trong transaction |
+| `image_worker.py` | Claim, tải/upload, retry và cập nhật kết quả |
+| `db/migrations/` | Migration queue trước khi chạy API ảnh/worker |
+| `settings.py`, `.env.sample` | Cấu hình và giá trị mặc định runtime |
+| `config/`, `site_resolver.py` | Registry nguồn, nhận diện/kiểm tra URL |
+| `extractor/` | Trích xuất nội dung, selector từng nguồn |
+| `requirements.txt` | Dependency pin phiên bản |
+| `Dockerfile`, `compose.yml`, `.dockerignore` | Build/chạy production |
+| `.gitignore` | Loại secret, bytecode, JSON export phía gọi khỏi Git |
+
+`.env` thật được quản lý trên máy triển khai. Sao lưu PostgreSQL và MinIO theo
+quy trình vận hành của hai hệ thống đó.

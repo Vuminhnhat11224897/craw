@@ -1,4 +1,4 @@
-# Images use MinIO configured through .env; no local media or metadata files.
+# Production API and image worker; images are stored in MinIO, jobs in PostgreSQL.
 services:
   realtime-news:
     build: .
@@ -16,4 +16,13 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  image-worker:
+    profiles: ["images"]
+    build: .
+    image: craw-real-times:latest
+    command: ["python", "-m", "craw_real_times.image_worker"]
+    env_file: .env
+    user: "1000:1000"
     restart: unless-stopped

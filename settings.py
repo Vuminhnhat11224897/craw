@@ -26,6 +26,8 @@ class Settings:
     article_namespace: str = ""
     record_timezone: str = _default("RECORD_TIMEZONE")
     max_concurrent_crawls: int = int(_default("MAX_CONCURRENT_CRAWLS"))
+    max_queued_crawls: int = int(_default("MAX_QUEUED_CRAWLS"))
+    queue_timeout: float = float(_default("QUEUE_TIMEOUT_SECONDS"))
     crawl_timeout: float = float(_default("CRAWL_TIMEOUT_SECONDS"))
     connect_timeout: float = float(_default("CONNECT_TIMEOUT_SECONDS"))
     read_timeout: float = float(_default("READ_TIMEOUT_SECONDS"))
@@ -38,6 +40,7 @@ class Settings:
     minio_access_key: str = ""
     minio_secret_key: str = ""
     minio_region: str = _default("MINIO_REGION")
+    article_database_url: str = ""
     blocked_image_urls: tuple[str, ...] = tuple(value.strip() for value in _default("BLOCKED_IMAGE_URLS").split(",") if value.strip())
     http_user_agent: str = _default("HTTP_USER_AGENT")
     http_accept: str = _default("HTTP_ACCEPT")
@@ -61,6 +64,8 @@ class Settings:
             article_namespace=os.getenv("ARTICLE_UUIDV5_NAMESPACE", ""),
             record_timezone=os.getenv("RECORD_TIMEZONE", cls.record_timezone),
             max_concurrent_crawls=int(os.getenv("MAX_CONCURRENT_CRAWLS", str(cls.max_concurrent_crawls))),
+            max_queued_crawls=int(os.getenv("MAX_QUEUED_CRAWLS", str(cls.max_queued_crawls))),
+            queue_timeout=float(os.getenv("QUEUE_TIMEOUT_SECONDS", str(cls.queue_timeout))),
             crawl_timeout=float(os.getenv("CRAWL_TIMEOUT_SECONDS", str(cls.crawl_timeout))),
             connect_timeout=float(os.getenv("CONNECT_TIMEOUT_SECONDS", str(cls.connect_timeout))),
             read_timeout=float(os.getenv("READ_TIMEOUT_SECONDS", str(cls.read_timeout))),
@@ -73,6 +78,7 @@ class Settings:
             minio_access_key=os.getenv("MINIO_ACCESS_KEY", ""),
             minio_secret_key=os.getenv("MINIO_SECRET_KEY", ""),
             minio_region=os.getenv("MINIO_REGION", cls.minio_region),
+            article_database_url=os.getenv("ARTICLE_DATABASE_URL", ""),
             blocked_image_urls=tuple(value.strip() for value in os.getenv("BLOCKED_IMAGE_URLS", ",".join(cls.blocked_image_urls)).split(",") if value.strip()),
             http_user_agent=os.getenv("HTTP_USER_AGENT", cls.http_user_agent),
             http_accept=os.getenv("HTTP_ACCEPT", cls.http_accept),
@@ -93,6 +99,8 @@ class Settings:
             raise ValueError("INTERNAL_API_KEY is required")
         uuid.UUID(self.article_namespace)
         ZoneInfo(self.record_timezone)
+        if self.max_queued_crawls < 0 or not math.isfinite(self.queue_timeout) or self.queue_timeout <= 0:
+            raise ValueError("MAX_QUEUED_CRAWLS cannot be negative and QUEUE_TIMEOUT_SECONDS must be positive")
         if not all(math.isfinite(value) for value in (self.crawl_timeout, self.connect_timeout, self.read_timeout, self.default_domain_delay, self.retry_backoff_cap)):
             raise ValueError("Timeouts must be finite")
         if min(self.max_concurrent_crawls, self.crawl_timeout, self.connect_timeout, self.read_timeout, self.max_html_bytes, self.max_image_bytes, self.max_videos_per_article) <= 0 or self.max_retries < 0:

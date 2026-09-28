@@ -4,9 +4,8 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime
-from html import unescape
-from typing import Dict, List, Optional, Sequence, Set
+from datetime import datetime, timezone
+from typing import List, Optional, Sequence, Set
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
@@ -15,7 +14,7 @@ from bs4 import BeautifulSoup, Tag
 from .config import SiteConfig
 from .errors import CrawlError
 from .settings import Settings
-from .extractor.article import ArticleExtractor, _is_in_excluded_section, _prettify_slug, _render_moha_article_html, _render_mof_article_html
+from .extractor.article import ArticleExtractor, _is_in_excluded_section, _render_moha_article_html, _render_mof_article_html
 
 LOGGER = logging.getLogger(__name__)
 _MOF_ROOT_SLUG = "bo-tai-chinh"
@@ -37,12 +36,6 @@ class ParsedArticle:
     publish_date: Optional[datetime]
     images: Sequence[str]
     videos: Sequence[str]
-
-@dataclass(slots=True)
-class CategoryInfo:
-    url: str
-    slug: str
-    name: Optional[str] = None
 
 class SkipArticle(Exception):
     """Raised when a crawled article should be ignored."""
@@ -329,12 +322,7 @@ class ArticleCrawler:
             raise CrawlError("ARTICLE_NOT_FOUND", "The article was not found on the news source.", 404)
         html = self._maybe_fetch_moha_article_html(normalized_url, html)
         html = self._maybe_fetch_mof_article_html(normalized_url, html)
-        parsed = self._parse_article(
-            html,
-            url=normalized_url,
-            category=None,
-            allow_missing_category=True,
-        )
+        parsed = self._parse_article(html, url=normalized_url)
         if not parsed.content:
             raise SkipArticle(f"Missing article content for {normalized_url}")
         return parsed
@@ -574,8 +562,6 @@ class ArticleCrawler:
         html: str,
         *,
         url: str,
-        category: CategoryInfo | None,
-        allow_missing_category: bool = False,
     ) -> ParsedArticle:
         soup = BeautifulSoup(html, "html.parser")
 
@@ -633,31 +619,7 @@ class ArticleCrawler:
             if not _looks_vietnamese(combined_text):
                 raise SkipArticle(f"Non-Vietnamese content for article {url}")
 
-        # Nếu bản thân trang bài không có category_id và category_name
-        # (do ArticleExtractor không trích được từ HTML) thì bỏ qua.
-        # Những URL này thường là trang thể loại/bộ sưu tập, không phải bài báo cụ thể.
-        if not (data.category_id or data.category_name):
-            # Riêng với một số site, ta fallback dùng slug category từ trang danh sách.
-            # - vov: trang bài thường không có meta category rõ ràng.
-            # - vnexpress: ArticleExtractor chưa trích được category, nhưng slug từ trang
-            #   danh sách đã phản ánh đúng chuyên mục (thoi-su, kinh-doanh, ...).
-            if category and self.site.key in (
-                "vov",
-                "vnexpress",
-                "baocaobang",
-                "baovinhlong",
-                "baodienbienphu",
-                "thanhtra",
-                "modgov",
-            ):
-                data.category_id = category.slug
-                data.category_name = category.name or _prettify_slug(category.slug)
-            elif not allow_missing_category:
-                raise SkipArticle(
-                    f"Missing category id and name for article {url}",
-                )
-
-        category_id = data.category_id or (category.slug if category else None)
+        category_id = data.category_id
         category_name = data.category_name
         if not category_name:
             breadcrumb = soup.select_one("ul.breadcrumb, nav.breadcrumb")
@@ -675,13 +637,7 @@ class ArticleCrawler:
         if forced_category_name:
             category_name = forced_category_name
 
-        if self.site.key == "vietbao" and not allow_missing_category:
-            normalized_category_id = (category_id or "").strip().lower()
-            has_category_name = bool((category_name or "").strip())
-            if not has_category_name or normalized_category_id in ("", "root"):
-                raise SkipArticle(f"Missing category for vietbao article {url}")
-
-        publish_date = data.publish_date or _extract_publish_date(soup)
+        publish_date = data.publish_date or _extract_publish_date(soup) or datetime.now(timezone.utc)
 
         if data.tags:
             tags_list: List[str] = [
@@ -791,4 +747,3 @@ class ArticleCrawler:
             max_length,
         )
         return value[:max_length]
-

@@ -10,8 +10,11 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyHeader
+from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 
 from .errors import CrawlError
+from .image_registration import save_crawl_images
 from .runtime import CrawlRuntime
 from .schemas import CrawlRequest
 from .serializers import encode_article_export
@@ -24,8 +27,12 @@ LOGGER = logging.getLogger(__name__)
 
 def create_app(settings: Settings | None = None, *, service=None) -> FastAPI:
     settings = settings if settings is not None else Settings.from_env()
-    runtime = CrawlRuntime(max_workers=settings.max_concurrent_crawls, timeout=settings.crawl_timeout)
+    runtime = CrawlRuntime(
+        max_workers=settings.max_concurrent_crawls, timeout=settings.crawl_timeout,
+        max_queue=settings.max_queued_crawls, queue_timeout=settings.queue_timeout,
+    )
     crawl_service = service if service is not None else CrawlService(settings, runtime.limiter)
+    image_engine = create_engine(settings.article_database_url, pool_pre_ping=True) if settings.article_database_url else None
 
     @asynccontextmanager
     async def lifespan(app):
@@ -36,6 +43,8 @@ def create_app(settings: Settings | None = None, *, service=None) -> FastAPI:
         finally:
             runtime.close()
             crawl_service.close()
+            if image_engine is not None:
+                image_engine.dispose()
 
     application = FastAPI(title="Realtime News Crawler", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -66,24 +75,47 @@ def create_app(settings: Settings | None = None, *, service=None) -> FastAPI:
     async def invalid_request(request: Request, exc: RequestValidationError):
         return JSONResponse(status_code=422, content={
             "request_id": request.state.request_id, "status": "error",
-            "error": {"code": "INVALID_OPTIONS", "message": "Check url and download_images.", "retryable": False,
+            "error": {"code": "INVALID_OPTIONS", "message": "Provide url only.", "retryable": False,
                       "details": [{"field": ".".join(map(str, item["loc"])), "message": item["msg"]} for item in exc.errors()]},
         })
+
+    async def run_crawl(body: CrawlRequest, request: Request, *, queue_images: bool = False):
+        def work(deadline):
+            result = crawl_service.crawl(body, request.state.request_id, deadline)
+            if queue_images and result["data"]["article_images"]:
+                if image_engine is None:
+                    raise CrawlError("IMAGE_QUEUE_NOT_CONFIGURED", "Set ARTICLE_DATABASE_URL to queue images.", 503)
+                if not all((settings.minio_endpoint, settings.minio_access_key, settings.minio_secret_key)):
+                    raise CrawlError("MEDIA_STORAGE_NOT_CONFIGURED", "Set MINIO_ENDPOINT, MINIO_ACCESS_KEY and MINIO_SECRET_KEY to download images.", 503)
+                save_crawl_images(image_engine, result)
+            return result
+
+        try:
+            return await runtime.run(work)
+        except CrawlError:
+            raise
+        except OperationalError:
+            raise CrawlError("IMAGE_QUEUE_UNAVAILABLE", "Could not reach the article database; retry later.", 503, retryable=True) from None
+        except Exception as exc:
+            LOGGER.error("request_id=%s unexpected_error_type=%s", request.state.request_id, type(exc).__name__)
+            raise CrawlError("INTERNAL_ERROR", "The crawl could not be completed.", 500) from None
 
     @application.post("/internal/v1/articles/crawl", dependencies=[Depends(authorize)], response_class=Response,
                       responses={200: {"description": "UTF-8 JSON file with the article, image and video rows", "content": {"application/json": {}}}})
     async def crawl(body: CrawlRequest, request: Request):
-        try:
-            result = await runtime.run(lambda deadline: crawl_service.crawl(body, request.state.request_id, deadline))
-        except CrawlError:
-            raise
-        except Exception as exc:
-            LOGGER.error("request_id=%s unexpected_error_type=%s", request.state.request_id, type(exc).__name__)
-            raise CrawlError("INTERNAL_ERROR", "The crawl could not be completed.", 500) from None
+        result = await run_crawl(body, request)
         article_id = uuid.UUID(result["data"]["articles"][0]["id"])
         return Response(content=encode_article_export(result), media_type="application/json", headers={
             "Content-Disposition": f'attachment; filename="article_{article_id}.json"',
         })
+
+    @application.post("/internal/v1/articles/images", dependencies=[Depends(authorize)], status_code=202)
+    async def queue_article_images(body: CrawlRequest, request: Request):
+        result = await run_crawl(body, request, queue_images=True)
+        article_id = result["data"]["articles"][0]["id"]
+        images = result["data"]["article_images"]
+        return {"status": "accepted", "article_id": article_id,
+                "image_ids": [image["id"] for image in images]}
 
     @application.get("/internal/v1/sites", dependencies=[Depends(authorize)])
     async def sites():

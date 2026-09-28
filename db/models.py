@@ -4,7 +4,6 @@ from sqlalchemy import Column, Text, String, DateTime, ForeignKey, Integer, Inde
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-from datetime import datetime
 import uuid_utils
 import uuid
 
@@ -29,15 +28,6 @@ def _article_uuidv5_namespace() -> uuid.UUID:
         raise ValueError(
             f"Invalid UUID value for environment variable: {_ARTICLE_UUIDV5_NAMESPACE_ENV}"
         ) from exc
-
-
-def clear_article_uuidv5_namespace_cache() -> None:
-    _article_uuidv5_namespace.cache_clear()
-
-
-def validate_article_uuidv5_namespace() -> uuid.UUID:
-    """Validate configuration early so crawls fail fast before partial work."""
-    return _article_uuidv5_namespace()
 
 
 def article_id_from_url(url: str, namespace: uuid.UUID | None = None) -> uuid.UUID:
@@ -133,17 +123,3 @@ class ArticleVideo(Base):
     
     def __repr__(self):
         return f"<ArticleVideo(id={self.id}, article_id={self.article_id}, path='{self.video_path}')>"
-
-
-# Helper functions for generating file paths
-def generate_image_path(article_id: uuid.UUID, sequence_number: int, extension: str = "jpg") -> str:
-    """Generate image path following the naming convention"""
-    return f"{article_id}_img_{sequence_number}.{extension}"
-
-
-def generate_video_path(article_id: uuid.UUID, sequence_number: int, extension: str = "mp4") -> str:
-    """Generate video path following the naming convention"""
-    return f"{article_id}_video_{sequence_number}.{extension}"
-
-
-# Example usage:
