@@ -35,8 +35,11 @@ class Settings:
     max_html_bytes: int = int(_default("MAX_HTML_BYTES"))
     max_image_bytes: int = int(_default("MAX_IMAGE_BYTES"))
     max_videos_per_article: int = int(_default("MAX_VIDEOS_PER_ARTICLE"))
-    images_folder: str = _default("IMAGES_FOLDER")
-    videos_folder: str = _default("VIDEOS_FOLDER")
+    minio_endpoint: str = _default("MINIO_ENDPOINT")
+    minio_bucket: str = _default("MINIO_BUCKET")
+    minio_access_key: str = ""
+    minio_secret_key: str = ""
+    minio_region: str = _default("MINIO_REGION")
     blocked_image_urls: tuple[str, ...] = tuple(value.strip() for value in _default("BLOCKED_IMAGE_URLS").split(",") if value.strip())
     http_user_agent: str = _default("HTTP_USER_AGENT")
     http_accept: str = _default("HTTP_ACCEPT")
@@ -69,8 +72,11 @@ class Settings:
             max_html_bytes=int(os.getenv("MAX_HTML_BYTES", str(cls.max_html_bytes))),
             max_image_bytes=int(os.getenv("MAX_IMAGE_BYTES", str(cls.max_image_bytes))),
             max_videos_per_article=int(os.getenv("MAX_VIDEOS_PER_ARTICLE", str(cls.max_videos_per_article))),
-            images_folder=os.getenv("IMAGES_FOLDER", cls.images_folder),
-            videos_folder=os.getenv("VIDEOS_FOLDER", cls.videos_folder),
+            minio_endpoint=os.getenv("MINIO_ENDPOINT", cls.minio_endpoint).rstrip("/"),
+            minio_bucket=os.getenv("MINIO_BUCKET", cls.minio_bucket),
+            minio_access_key=os.getenv("MINIO_ACCESS_KEY", ""),
+            minio_secret_key=os.getenv("MINIO_SECRET_KEY", ""),
+            minio_region=os.getenv("MINIO_REGION", cls.minio_region),
             blocked_image_urls=tuple(value.strip() for value in os.getenv("BLOCKED_IMAGE_URLS", ",".join(cls.blocked_image_urls)).split(",") if value.strip()),
             http_user_agent=os.getenv("HTTP_USER_AGENT", cls.http_user_agent),
             http_accept=os.getenv("HTTP_ACCEPT", cls.http_accept),
@@ -99,9 +105,19 @@ class Settings:
             raise ValueError("Timeouts, limits and concurrency must be positive; retries cannot be negative")
         if self.default_domain_delay < 0 or self.retry_backoff_cap < 0 or self.max_redirects < 0 or self.http_chunk_bytes < 1 or self.retry_after_seconds < 1:
             raise ValueError("HTTP limits and retry values must be valid")
-        if not all(value.strip() for value in (self.images_folder, self.videos_folder, self.http_user_agent, self.http_accept, self.http_json_accept, self.http_image_accept, self.http_accept_language)):
-            raise ValueError("HTTP headers and media folders must not be empty")
+        if not all(value.strip() for value in (self.http_user_agent, self.http_accept, self.http_json_accept, self.http_image_accept, self.http_accept_language)):
+            raise ValueError("HTTP headers must not be empty")
         from urllib.parse import urlsplit
+        if self.minio_endpoint:
+            parsed = urlsplit(self.minio_endpoint)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.path not in ("", "/") or parsed.username or parsed.password or parsed.query or parsed.fragment:
+                raise ValueError("MINIO_ENDPOINT must be an HTTP(S) S3 base URL, not a console/browser URL")
+            if parsed.port == 0:
+                raise ValueError("MINIO_ENDPOINT must use a valid port")
+        from minio.helpers import check_bucket_name
+        check_bucket_name(self.minio_bucket, strict=True)
+        if not self.minio_region.strip():
+            raise ValueError("MINIO_REGION must not be empty")
         for name, value in (("MOHA_API_BASE", self.moha_api_base), ("MOF_API_BASE", self.mof_api_base)):
             parsed = urlsplit(value)
             if parsed.scheme != "https" or not parsed.hostname or parsed.port not in (None, 443) or parsed.username or parsed.password or parsed.query or parsed.fragment:
