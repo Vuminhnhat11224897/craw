@@ -606,7 +606,7 @@ class ArticleCrawler:
 
         content = data.content
         # Bài video/PDF của VNPT Portal chỉ có iframe trong ArticleContent; fallback <body> sẽ lấy cả menu/footer.
-        if not content and self.site.key != "conganlaocai":
+        if not content and self.site.key not in ("conganlaocai", "laocai"):
             content = _extract_main_content(soup)
         content = content or None
         if content and len(content.strip()) < 50:

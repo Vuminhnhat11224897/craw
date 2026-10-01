@@ -223,8 +223,7 @@ curl --fail-with-body --max-time 240 \
   -d '{"url":"https://vnexpress.net/duong-dan-bai-bao.html"}'
 ```
 
-Body chỉ có `url`, chuỗi từ 1 đến 2000 ký tự. Trường khác như `save_to_db`,
-`download_images` bị từ chối với `422 INVALID_OPTIONS`. URL phải HTTP(S), thuộc
+Body chỉ có `url`, chuỗi từ 1 đến 2000 ký tự. Trường khác bị từ chối với `422 INVALID_OPTIONS`. URL phải HTTP(S), thuộc
 nguồn được hỗ trợ, không có credentials/cổng tùy chỉnh. Đích tải và redirect
 được kiểm tra để chặn IP private/reserved.
 
