@@ -396,40 +396,27 @@ class ArticleExtractor:
                     continue
                 if len(elements) == 1:
                     return elements[0]
-                best_element: Tag | None = None
-                best_length = 0
-                for element in elements:
-                    if _is_in_excluded_section(element):
-                        continue
-                    text_length = len(element.get_text(" ", strip=True))
-                    if text_length > best_length:
-                        best_length = text_length
-                        best_element = element
-                if best_element:
-                    return best_element
+                elements = [element for element in elements
+                            if not _is_in_excluded_section(element)]
+                if elements:
+                    return max(elements, key=lambda element: len(element.get_text(" ", strip=True)))
 
+        # Compare length only within the same priority; a sidebar must not
+        # outweigh an explicitly marked article body.
         selectors = [
-            "[itemprop='articleBody']",
-            "article",
-            "section[itemtype*='Article']",
-            "div[class*='article-body']",
-            "section[class*='article-body']",
-            "div[class*='entry']",
-            "div[class*='content'], section[class*='content']",
+            "[itemprop~='articleBody']",
+            ".article__body, .cms-body, div[class*='article-body'], section[class*='article-body']",
+            ".article-content, .content-detail, .detail-content, .tinymce-content, #content-detail, #content_detail",
+            "article:not([class*='card']):not(.item-news):not(.ck-cms-insert-news), div.article, section[itemtype*='Article']",
+            # ponytail: unknown layouts use text length; add a site selector when guessing fails.
+            "div[class*='entry'], div[class*='content'], section[class*='content']",
         ]
-
-        best_element: Tag | None = None
-        best_length = 0
         for selector in selectors:
-            for element in soup.select(selector):
-                if _is_in_excluded_section(element):
-                    continue
-                text_length = len(element.get_text(" ", strip=True))
-                if text_length > best_length:
-                    best_length = text_length
-                    best_element = element
-        if best_element:
-            return best_element
+            elements = [element for element in soup.select(selector)
+                        if not _is_in_excluded_section(element)
+                        and (element.get_text(strip=True) or element.find(["img", "video", "iframe"]))]
+            if elements:
+                return max(elements, key=lambda element: len(element.get_text(" ", strip=True)))
 
         if self.site_config and self.site_config.main_container_keywords:
             candidate = _find_largest_element_by_keyword(soup, self.site_config.main_container_keywords)
@@ -1189,6 +1176,8 @@ def _has_excluded_marker(element: Tag) -> bool:
             continue
         values = attr_value if isinstance(attr_value, list) else [attr_value]
         for value in values:
+            if value == "disable-ads":
+                continue
             if "box-adv" in str(value).lower():
                 return True
             tokens = _tokenize_identifier(value)

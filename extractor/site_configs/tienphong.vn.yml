@@ -1,0 +1,6 @@
+'tienphong.vn':
+  description_selectors:
+    - 'div.article__sapo'
+  main_container_selectors:
+    - 'div.article__body'
+    - 'div.cms-body'

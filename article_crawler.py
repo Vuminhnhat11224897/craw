@@ -607,7 +607,12 @@ class ArticleCrawler:
         content = data.content
         # Bài video/PDF của VNPT Portal chỉ có iframe trong ArticleContent; fallback <body> sẽ lấy cả menu/footer.
         if not content and self.site.key not in ("conganlaocai", "laocai"):
-            content = _extract_main_content(soup)
+            # Keep fallback extraction inside the body already selected by the extractor.
+            content = _extract_main_content(
+                BeautifulSoup(data.content_html, "html.parser") if data.content_html else soup
+            )
+        if not content and data.videos:
+            content = description
         content = content or None
         if content and len(content.strip()) < 50:
             raise SkipArticle(f"Missing article content for {url}")
@@ -654,7 +659,10 @@ class ArticleCrawler:
         images = [image for image in data.images if image not in blocked_images]
         videos = list(data.videos)
         if not images and not videos:
-            images, videos = _extract_images_and_videos(soup, base_url=self.site.base_url)
+            images, videos = _extract_images_and_videos(
+                BeautifulSoup(data.content_html, "html.parser") if data.content_html else soup,
+                base_url=self.site.base_url,
+            )
         images = [image for image in images if image not in blocked_images]
 
         return ParsedArticle(
