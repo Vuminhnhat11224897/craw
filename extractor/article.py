@@ -1069,7 +1069,14 @@ def _render_mof_article_html(payload: dict[str, Any] | None) -> str | None:
     return f"<!doctype html><html><head>{head}</head><body>{body}</body></html>"
 
 
+# VNPT Portal (vd. congan.laocai.gov.vn) ghi DC.Date dạng "2026-10-01T08-39-00";
+# dateutil hiểu "-39" là múi giờ nên phải đổi sang "08:39:00" trước.
+_HYPHEN_TIME_ISO_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2})-(\d{2})-(\d{2})$")
+
+
 def _parse_datetime(value: str) -> Optional[datetime]:
+    if isinstance(value, str):
+        value = _HYPHEN_TIME_ISO_RE.sub(r"\1:\2:\3", value.strip())
     try:
         parsed = date_parser.parse(value)
     except (ValueError, TypeError, OverflowError):
@@ -3076,6 +3083,19 @@ def _extract_breadcrumb_category(
     return None, None
 
 
+def _extract_vnportal_category(
+    base_url: str, soup: BeautifulSoup
+) -> Tuple[str | None, str | None]:
+    """Breadcrumb VNPT Portal: ul.NavContainer > li.Home, li.Item (mục cuối là chuyên mục bài)."""
+    links = soup.select("div.MenuNavigation ul.NavContainer li.Item a[href]")
+    if not links:
+        return None, None
+    link = links[-1]
+    name = _normalize_whitespace(link.get_text(" ", strip=True))
+    slug = _slug_from_url(urljoin(base_url, link["href"]))
+    return slug or (_slugify(name) if name else None), name or None
+
+
 def _extract_baoninhbinh_category(
     base_url: str, soup: BeautifulSoup
 ) -> Tuple[str | None, str | None]:
@@ -3275,6 +3295,7 @@ _CATEGORY_EXTRACTORS: dict[str, Callable[[str, BeautifulSoup], Tuple[str | None,
     "baokhanhhoa_category": _extract_baokhanhhoa_category,
     "bvhttdl_category": _extract_bvhttdl_category,
     "breadcrumb_category": _extract_breadcrumb_category,
+    "vnportal_category": _extract_vnportal_category,
     "eva_category": _extract_eva_category,
     "baoninhbinh_category": _extract_baoninhbinh_category,
     "tapchitoaan_category": _extract_tapchitoaan_category,

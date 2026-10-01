@@ -1,0 +1,18 @@
+'congan.laocai.gov.vn':
+  title_selectors:
+    - 'div.ArticleDetailControl div.ArticleHeader'
+  description_selectors:
+    - 'div.ArticleDetailControl div.ArticleSummary'
+  main_container_selectors:
+    - 'div.ArticleDetailControl div.ArticleContent'
+  main_container_keywords:
+    - 'ArticleContent'
+  publish_date_selectors:
+    - 'meta[name=''DC.Date'']'
+    - 'div.ArticleDetailControl div.PostDate'
+  category_extractors:
+    - 'vnportal_category'
+  excluded_section_selectors:
+    - 'div.UISocialShare'
+    - 'div.ArticleTool'
+    - 'div.ArticleTags'

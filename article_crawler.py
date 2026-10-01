@@ -604,7 +604,11 @@ class ArticleCrawler:
                 )
             description = _text_or_none(desc_node)
 
-        content = data.content or _extract_main_content(soup) or None
+        content = data.content
+        # Bài video/PDF của VNPT Portal chỉ có iframe trong ArticleContent; fallback <body> sẽ lấy cả menu/footer.
+        if not content and self.site.key != "conganlaocai":
+            content = _extract_main_content(soup)
+        content = content or None
         if content and len(content.strip()) < 50:
             raise SkipArticle(f"Missing article content for {url}")
         if not content or not content.strip():

@@ -135,8 +135,10 @@ def process(engine, job, settings, limiter):
             LOGGER.info("image_id=%s status=downloaded bytes=%d", job["image_id"], len(content))
     except Exception as exc:
         terminal = isinstance(exc, ValueError) or getattr(exc, "code", None) == "INVALID_URL"
-        if getattr(exc, "response", None) is not None:
-            status = exc.response.status_code
+        # requests responses expose status_code; MinIO S3Error wraps a urllib3 response with status.
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None) or getattr(response, "status", None)
+        if status:
             terminal = terminal or (400 <= status < 500 and status != 429)
         LOGGER.warning("image_id=%s attempt=%s error=%s", job["image_id"], job["attempts"], exc)
         fail(engine, job, exc, terminal=terminal)
