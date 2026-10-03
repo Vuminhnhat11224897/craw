@@ -1,25 +1,43 @@
 'vietnamfinance.vn':
   title_selectors:
+    - 'h1.detail-title'
     - 'meta[property=''og:title'']'
     - 'meta[name=''twitter:title'']'
     - 'h1'
   description_selectors:
+    - '.detail-sapo'
     - 'meta[name=''description'']'
     - 'meta[property=''og:description'']'
     - 'h2.sapo'
     - 'div.sapo'
     - 'p.sapo'
   main_container_selectors:
+    - '#news_detail'
+    - 'div.content_detailnews'
+    - '#explus-editor'
+    - '[itemprop~=''articleBody'']'
     - 'div.detail-content'
     - 'div.detail__content'
     - 'div.content-detail'
     - 'div.article-content'
     - 'article'
-    - 'div[itemprop=''articleBody'']'
   main_container_keywords:
+    - 'content_detailnews'
+    - 'explus-editor'
     - 'detail'
     - 'article'
     - 'content'
     - 'body'
+  excluded_section_selectors:
+    - 'figcaption'
+    - '.recommended-in-content'
+    - '.ck-cms-insert-news'
+    - '.lazy_adv'
+    - '#ads_inpage'
+    - '#ads_bottom'
+    - '.detail-title'
+    - '.detail-time-public'
+    - '.detail-sapo'
+  filter_content_keywords: false
   category_extractors:
     - 'breadcrumb_category'

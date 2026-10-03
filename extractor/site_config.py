@@ -23,6 +23,8 @@ class ArticleSiteConfig:
     category_extractors: Tuple[str, ...] = ()
     tag_extractors: Tuple[str, ...] = ()
     publish_date_selectors: Tuple[str, ...] = ()
+    # Disable text heuristics for publishers whose non-editorial blocks are explicitly pruned.
+    filter_content_keywords: bool = True
     inline_media_only: bool = False
     include_metadata_images: bool = False
     allow_extensionless_images: bool = False

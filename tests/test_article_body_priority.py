@@ -20,6 +20,7 @@ class ArticleBodyPriorityTest(unittest.TestCase):
             ("cms body", f'<div class="cms-body">{body}</div>{sidebar}', None),
             ("article tag", f'<article>{body}</article>{sidebar}', None),
             ("article div", f'<div class="article">{body}</div>{sidebar}', None),
+            ("article title", f'<div class="detail-content"><h1>Tiêu đề bài báo</h1>{body}</div>{sidebar}', None),
             ("article section", f'<section itemtype="https://schema.org/NewsArticle">{body}</section>{sidebar}', None),
             ("site override", f'<div class="publisher-body">{body}</div>'
              f'<article itemprop="articleBody"><p>{unrelated}</p></article>{sidebar}',

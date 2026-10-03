@@ -4,7 +4,6 @@ import logging
 import posixpath
 import re
 import unicodedata
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from html import escape, unescape
@@ -298,7 +297,9 @@ class ArticleExtractor:
 
         collected_texts: List[str] = []
         last_text: str | None = None
-        queue: deque[Tag] = deque([container])
+        filter_content_keywords = self.site_config.filter_content_keywords if self.site_config else True
+        # Resume parent iterators after each child to preserve document order.
+        stack = [iter(container.children)]
         blockish_tags = {
             "article",
             "aside",
@@ -325,9 +326,8 @@ class ArticleExtractor:
             "ul",
         }
 
-        while queue:
-            current = queue.popleft()
-            for child in current.children:
+        while stack:
+            for child in stack[-1]:
                 if not isinstance(child, Tag):
                     continue
                 if child.name in {"script", "style", "noscript", "iframe", "form"}:
@@ -354,7 +354,7 @@ class ArticleExtractor:
                     text = _normalize_whitespace(text)
                     if not text:
                         continue
-                    if _contains_excluded_text(text):
+                    if filter_content_keywords and _contains_excluded_text(text):
                         continue
                     if text == last_text:
                         continue
@@ -370,16 +370,19 @@ class ArticleExtractor:
                     # Some publishers (e.g. baolaocai.vn) render paragraphs as bare <div> nodes.
                     # Treat leaf-ish divs (no nested block-ish tags) as paragraph candidates.
                     if child.find(tuple(blockish_tags - {"div"})):
-                        queue.append(child)
-                        continue
+                        stack.append(iter(child.children))
+                        break
                     text = child.get_text(" ", strip=True)
                     text = _normalize_whitespace(text)
-                    if not text or _contains_excluded_text(text) or text == last_text:
+                    if not text or (filter_content_keywords and _contains_excluded_text(text)) or text == last_text:
                         continue
                     collected_texts.append(text)
                     last_text = text
                 else:
-                    queue.append(child)
+                    stack.append(iter(child.children))
+                    break
+            else:
+                stack.pop()
 
         if not collected_texts:
             return None
