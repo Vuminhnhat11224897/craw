@@ -1,0 +1,18 @@
+'cand.vn':
+  title_selectors:
+    - 'h1.article__title'
+  description_selectors:
+    - 'div.article__sapo'
+  main_container_selectors:
+    - 'div.article__body'
+  main_container_keywords:
+    - 'article__body'
+  publish_date_selectors:
+    - 'meta[property=''article:published_time'']'
+    - 'div.article__meta time.time'
+  category_extractors:
+    - 'breadcrumb_category'
+  excluded_section_selectors:
+    - 'div.features'
+    - 'div.related-news'
+    - 'div.article__tag'
